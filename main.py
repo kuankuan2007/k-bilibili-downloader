@@ -44,10 +44,11 @@ consoleLogHandler.setLevel(logging.INFO)
 consoleLogHandler.setFormatter(fmter)
 
 
-def showModal(master):
+def showModal(master: tk.BaseWidget) -> tk.Toplevel:
     window = tk.Toplevel(master)
     window.transient(master)
     window.grab_set()
+    window.resizable(0,0)
     return window
 
 
@@ -59,7 +60,6 @@ def _download(
     fail: Callable[[], None],
     progress: ttk.Progressbar,
 ):
-
     logger = rootLogger.getChild("_download")
 
     logger.info(f"start downloading {url}")
@@ -426,8 +426,6 @@ def mergeVideo(
             savePath,
             "-y",
         ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
         text=True,
         bufsize=50,
     )
@@ -444,9 +442,10 @@ def mergeVideo(
 
 rootLogger.info("starting")
 
-# 创建主窗口
 root = tk.Tk()
 root.title("视频下载器")
+root.resizable(0, 0)
+
 
 main = tk.Frame()
 main.grid(row=0, column=0, padx=10, pady=10)
