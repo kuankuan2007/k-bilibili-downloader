@@ -11,8 +11,37 @@ import pyperclip
 import tempfile
 import pathlib
 import time
-import shutil
 import subprocess
+import logging
+import sys
+
+tempRoot = pathlib.Path(tempfile.gettempdir()).joinpath(
+    f"k-bilibili-download-{time.time()}"
+)
+if not tempRoot.exists():
+    os.mkdir(tempRoot)
+fileLogHandler = logging.FileHandler(
+    filename=str(tempRoot.joinpath("log.txt")),
+    mode="w",
+    encoding="utf-8",
+)
+fmter = logging.Formatter(
+    fmt="[%(asctime)s] [%(name)s] [t-%(thread)d] [%(levelname)s]: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+consoleLogHandler = logging.StreamHandler()
+
+rootLogger = logging.getLogger()
+
+rootLogger.addHandler(fileLogHandler)
+rootLogger.addHandler(consoleLogHandler)
+rootLogger.setLevel(logging.DEBUG)
+
+fileLogHandler.setLevel(logging.INFO)
+fileLogHandler.setFormatter(fmter)
+consoleLogHandler.setLevel(logging.INFO)
+consoleLogHandler.setFormatter(fmter)
 
 
 def showModal(master):
@@ -30,35 +59,43 @@ def _download(
     fail: Callable[[], None],
     progress: ttk.Progressbar,
 ):
-    response = requests.get(url, headers=header, stream=True)
+
+    logger = rootLogger.getChild("_download")
+
+    logger.info(f"start downloading {url}")
 
     try:
-        progress["maximum"] = int(response.headers["Content-Length"])
+        response = requests.get(url, headers=header, stream=True)
+        logger.info(f"response status code: {response.status_code}")
+
         assert response.status_code // 100 == 2
+
+        progress["maximum"] = int(response.headers["Content-Length"])
+
         for i in response.iter_content(1024):
             saveIO.write(i)
             progress["value"] += len(i)
             progress.update()
 
-    except Exception:
+    except Exception as e:
+        logger.warning(f"download failed: {e.__class__.__name__}: {e}")
+
         fail()
     else:
         saveIO.close()
+        logger.info("download succeed")
         succeed()
 
 
 def startDownload(
     videoInfo: dict, audioInfo: dict, header: dict, savePath: pathlib.Path
 ):
+    logger = rootLogger.getChild("startDownload")
 
-    tempRoot = pathlib.Path(tempfile.gettempdir()).joinpath(
-        f"k-bilibili-download-{time.time()}"
-    )
-    if not tempRoot.exists():
-        os.mkdir(tempRoot)
+    videoPath = tempRoot.joinpath(f"video-{time.time()}.tmp")
+    audioPath = tempRoot.joinpath(f"audio-{time.time()}.tmp")
 
-    videoPath = tempRoot.joinpath("video.tmp")
-    audioPath = tempRoot.joinpath("audio.tmp")
+    logger.info(f"videoPath: {videoPath}, audioPath: {audioPath}")
 
     progressWindow = showModal(root)
     progressWindow.title("下载进度")
@@ -88,14 +125,17 @@ def startDownload(
     buttonBox.grid(row=3, column=0, columnspan=2, sticky="E")
 
     def cancel():
-        videoThread and videoThread._stop()
-        audioThread and audioThread._stop()
-        mergeThread and mergeThread._stop()
-        shutil.rmtree(str(tempRoot))
+        logger.info("download cancel")
+        for i in [videoThread, audioThread, mergeThread]:
+            try:
+                i._stop()
+            except Exception:
+                pass
         close()
 
     def close():
         progressWindow.destroy()
+        logger.info("window closed")
 
     ttk.Button(buttonBox, text="取消", command=cancel).grid(row=0, column=0)
 
@@ -108,17 +148,31 @@ def startDownload(
         nonlocal succeed
         succeed += 1
         if (succeed) >= 2:
+            logger.info("download success")
             _start("merge")
 
     def fail(t=Literal["video", "audio"]):
+        logger.info(f"{t} download failed")
         if messagebox.askokcancel("错误", f"{t}下载失败，是否重试"):
+            logger.info(f"{t} download retry")
             _start(t)
         else:
+            logger.info(f"download cancel, case by download {t} fail")
             cancel()
 
     def mergeSuccess():
         close()
+        logger.info("merge succeed, download complete")
         messagebox.showinfo("完成", "下载完成")
+
+    def mergeFail():
+        logger.info("merge failed")
+        if messagebox.askokcancel("错误", "合并失败，是否重试"):
+            logger.info("merge retry")
+            _start("merge")
+        else:
+            logger.info("download cancel, case by merge fail")
+            cancel()
 
     videoThread: threading.Thread
     audioThread: threading.Thread
@@ -126,6 +180,7 @@ def startDownload(
 
     def _start(t=Literal["video", "audio", "merge"]):
         nonlocal videoThread, audioThread, mergeThread
+        logger.info(f"start thread: {t}")
         if t == "video":
             videoThread = threading.Thread(
                 target=_download,
@@ -140,6 +195,7 @@ def startDownload(
                 daemon=True,
             )
             videoThread.start()
+            logger.info(f"video thread started in thread {videoThread.ident}")
         elif t == "audio":
             audioThread = threading.Thread(
                 target=_download,
@@ -154,24 +210,34 @@ def startDownload(
                 daemon=True,
             )
             audioThread.start()
+            logger.info(f"audio thread started in thread {videoThread.ident}")
         elif t == "merge":
             mergeThread = threading.Thread(
                 target=mergeVideo,
-                args=(videoPath, audioPath, savePath, mergeSuccess),
+                args=(videoPath, audioPath, savePath, mergeSuccess, mergeFail),
                 daemon=True,
             )
             mergeThread.start()
+            logger.info(f"merge thread started in thread {mergeThread.ident}")
+
+    logger.info("window initialized")
 
     _start("video")
     _start("audio")
 
 
 def requestDownload():
+
+    logger = rootLogger.getChild("requestDownload")
+
     video = videoVar.get()
-    cookie = cookieVar.get()
+    cookie = cookieVar.get().replace("\r", "").replace("\n", "")
     savePath = savePathVar.get()
 
+    logger.info(f"video: {video}, cookie: {cookie}, savePath: {savePath}")
+
     if not (video and cookie and savePath):
+        logger.info("Incomplete information, return")
         messagebox.showerror("错误", "请填写完整信息")
         return
     if re.match(
@@ -179,12 +245,15 @@ def requestDownload():
         video,
     ):
         url = video
+        logger.info("input type is url")
     elif re.match(
-        re.compile("av{1-9}\d*", re.I),
+        re.compile("av[1-9][0-9]*", re.I),
         video,
     ) or re.match("(?:B|b)(?:v|V)[0-9a-zA-Z]{10}", video):
         url = f"https://www.bilibili.com/video/{video}?spm_id_from=player_end_recommend_autoplay"
+        logger.info(f"input type is av/bv, transform to url: {url}")
     else:
+        logger.info("input type is invalid, return")
         messagebox.showerror("错误", "请输入正确的视频地址或av号/BV号")
         return
     headers = {
@@ -201,17 +270,23 @@ def requestDownload():
     }
 
     try:
+        logger.info(f"request page url: {url}, headers: {headers}")
         response = requests.get(url, headers=headers)
+        logger.info(f"response status code: {response.status_code}")
         assert response.status_code // 100 == 2
         html = response.text
-    except Exception:
+    except Exception as e:
+        logger.warning(
+            f"Can't get page response with error {e.__class__.__name__}:{str(e)}"
+        )
         messagebox.showerror(
             "错误",
-            "请求错误，无法获取页面信息",
+            f"请求错误，无法获取页面信息\n{e.__class__.__name__}:{str(e)}",
         )
         return
 
     try:
+        logger.info("start parse page")
         flag = False
         for i in [
             r"window.__playinfo__=(.*?)</script>",
@@ -225,7 +300,8 @@ def requestDownload():
                 flag = True
                 break
         if not flag:
-            raise Exception()
+            logger.warning("Can't find playinfo in page")
+            raise Exception("Can't find playinfo in page")
 
         acceptQuality: Dict[int, str] = dict(
             zip(
@@ -240,31 +316,26 @@ def requestDownload():
         assert len(audioList)
         assert len(videoList)
 
-    except Exception:
+    except Exception as e:
+        logger.warning(
+            f"Can't parse page with error {e.__class__.__name__}:{str(e)}, return"
+        )
         messagebox.showerror("错误", "解析错误，无法获取视频信息")
         return
     try:
+        logger.info("Validating the save path")
         open(savePath, "wb").close()
     except Exception:
+        logger.warning("Invalid save path, return")
         messagebox.showerror("错误", "无法打开保存路径")
         return
 
     def askDownloadTypeCallback(videoInfo: dict, audioInfo: dict):
+        logger.info("download information confirmed")
         startDownload(videoInfo, audioInfo, headers, savePath)
 
+    logger.info("start ask download type")
     askDownloadType(videoList, audioList, acceptQuality, askDownloadTypeCallback)
-
-    #     video_content = stream_download(
-    #         video_url, headers, os.path.join(save_path, f"{title}.mp4")
-    #     )
-    #     audio_content = stream_download(
-    #         audio_url, headers, os.path.join(save_path, f"{title}.mp3")
-    #     )
-
-    #     if video_content and audio_content:
-    #         return title
-    #     else:
-    #         messagebox.showerror("错误", "下载失败。")
 
 
 def askDownloadType(
@@ -273,6 +344,7 @@ def askDownloadType(
     acceptQuality: Dict[int, str],
     callback: Callable[[Dict, Dict], None],
 ):
+    logger = rootLogger.getChild("askDownloadType")
 
     selectWindow = showModal(root)
     selectWindow.title("选择音视频通道")
@@ -306,20 +378,24 @@ def askDownloadType(
     buttonBox = tk.Frame(main)
     buttonBox.grid(row=2, column=0, columnspan=2, pady=10, sticky="e")
 
-    def startDownload():
+    def confirmed():
+        logger.info(
+            f"download information confirmed by user, v:{videoCombobox.current()} a:{audioCombobox.current()}"
+        )
         video = videoList[videoCombobox.current()]
         audio = audioList[audioCombobox.current()]
         close()
-
+        logger.info("End this life cycle")
         callback(video, audio)
 
     def close():
+        logger.info("window closed")
         selectWindow.destroy()
 
     ttk.Button(buttonBox, text="取消", command=close).grid(row=0, column=0)
-    ttk.Button(buttonBox, text="确认", command=startDownload).grid(
-        row=0, column=1, padx=2
-    )
+    ttk.Button(buttonBox, text="确认", command=confirmed).grid(row=0, column=1, padx=2)
+
+    logger.info("window initialized")
 
 
 def mergeVideo(
@@ -327,7 +403,12 @@ def mergeVideo(
     audioPath: pathlib.Path,
     savePath: pathlib.Path,
     mergeSuccess: Callable[[], None],
+    mergeFail: Callable[[], None],
 ):
+    logger = rootLogger.getChild("mergeVideo")
+
+    logger.info(f"merge video: {videoPath}, audio: {audioPath}, save: {savePath}")
+
     ffmpegProcess = subprocess.Popen(
         [
             "ffmpeg",
@@ -350,9 +431,18 @@ def mergeVideo(
         text=True,
         bufsize=50,
     )
+    logger.info("ffmpeg process started")
     ffmpegProcess.wait()
+    logger.info(f"ffmpeg process ended, with code: {ffmpegProcess.returncode}")
+    if ffmpegProcess.returncode != 0:
+        logger.warning("ffmpeg process failed")
+        mergeFail()
+        return
+    logger.info("ffmpeg process success")
     mergeSuccess()
 
+
+rootLogger.info("starting")
 
 # 创建主窗口
 root = tk.Tk()
@@ -399,9 +489,22 @@ ttk.Button(
     ),
 ).grid(row=2, column=2)
 
-ttk.Button(main, text="下载", command=requestDownload).grid(
-    row=3, column=0, pady=10, columnspan=3, sticky="we"
-)
 
+def downloadButtonOnClick():
+    downloadButton.configure(state="disabled")
+    requestDownloadThread = threading.Thread(
+        target=lambda: (requestDownload(), downloadButton.configure(state="normal")),
+        daemon=True,
+    )
+    requestDownloadThread.start()
+    rootLogger.info(
+        f"download button onclick, starting download thread {requestDownloadThread.ident}"
+    )
+
+
+downloadButton = ttk.Button(main, text="下载", command=downloadButtonOnClick)
+downloadButton.grid(row=3, column=0, pady=10, columnspan=3, sticky="we")
+
+rootLogger.info("Done")
 
 root.mainloop()
