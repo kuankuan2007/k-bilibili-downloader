@@ -48,7 +48,7 @@ def showModal(master: tk.BaseWidget) -> tk.Toplevel:
     window = tk.Toplevel(master)
     window.transient(master)
     window.grab_set()
-    window.resizable(0,0)
+    window.resizable(0, 0)
     return window
 
 
@@ -65,7 +65,7 @@ def _download(
     logger.info(f"start downloading {url}")
 
     try:
-        response = requests.get(url, headers=header, stream=True)
+        response = requests.get(url, headers=header, stream=True,timeout=60)
         logger.info(f"response status code: {response.status_code}")
 
         assert response.status_code // 100 == 2
@@ -100,28 +100,28 @@ def startDownload(
     progressWindow = showModal(root)
     progressWindow.title("下载进度")
 
-    main = tk.Frame(progressWindow)
-    main.grid(column=0, row=0, padx=10, pady=10)
+    _main = tk.Frame(progressWindow)
+    _main.grid(column=0, row=0, padx=10, pady=10)
 
-    tk.Label(main, text="视频").grid(row=0, column=0, sticky="e")
-    tk.Label(main, text="音频").grid(row=1, column=0, sticky="e")
-    tk.Label(main, text="转码").grid(row=2, column=0, sticky="e")
+    tk.Label(_main, text="视频").grid(row=0, column=0, sticky="e")
+    tk.Label(_main, text="音频").grid(row=1, column=0, sticky="e")
+    tk.Label(_main, text="转码").grid(row=2, column=0, sticky="e")
 
     videoProgress = ttk.Progressbar(
-        main, orient="horizontal", mode="determinate", length=200
+        _main, orient="horizontal", mode="determinate", length=200
     )
     audioProgress = ttk.Progressbar(
-        main, orient="horizontal", mode="determinate", length=200
+        _main, orient="horizontal", mode="determinate", length=200
     )
     mergeProgress = ttk.Progressbar(
-        main, orient="horizontal", mode="indeterminate", length=200
+        _main, orient="horizontal", mode="indeterminate", length=200
     )
 
     videoProgress.grid(row=0, column=1)
     audioProgress.grid(row=1, column=1)
     mergeProgress.grid(row=2, column=1)
 
-    buttonBox = tk.Frame(main)
+    buttonBox = tk.Frame(_main)
     buttonBox.grid(row=3, column=0, columnspan=2, sticky="E")
 
     def cancel():
@@ -271,7 +271,7 @@ def requestDownload():
 
     try:
         logger.info(f"request page url: {url}, headers: {headers}")
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=60)
         logger.info(f"response status code: {response.status_code}")
         assert response.status_code // 100 == 2
         html = response.text
@@ -288,13 +288,33 @@ def requestDownload():
     try:
         logger.info("start parse page")
         flag = False
-        for i in [
-            r"window.__playinfo__=(.*?)</script>",
-            r'"video_info":(.*),(\s\n\t)*"view_info"',
+        f = open("a.html", "w", encoding="utf-8")
+        f.write(response.text)
+        f.close()
+        for i, maper in [
+            (
+                re.compile(r"window.__playinfo__=(.*?)</script>", re.S),
+                lambda x: x["data"],
+            ),
+            (
+                re.compile(
+                    r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
+                    re.S,
+                ),
+                lambda x: [
+                    i["state"]["data"]["result"]["video_info"]
+                    for i in x["props"]["pageProps"]["dehydratedState"]["queries"]
+                    if i.get("state", {})
+                    .get("data", {})
+                    .get("result", {})
+                    .get("video_info")
+                ][0],
+            ),
         ]:
             try:
-                palyInfo = json.loads(re.findall(i, html)[0])
-            except Exception:
+                palyInfo = maper(json.loads(re.findall(i, html)[0]))
+            except Exception as e:
+                print(e)
                 continue
             else:
                 flag = True
@@ -305,13 +325,13 @@ def requestDownload():
 
         acceptQuality: Dict[int, str] = dict(
             zip(
-                palyInfo["data"]["accept_quality"],
-                palyInfo["data"]["accept_description"],
+                palyInfo["accept_quality"],
+                palyInfo["accept_description"],
             )
         )
 
-        videoList: List[dict] = palyInfo["data"]["dash"]["video"]
-        audioList: List[dict] = palyInfo["data"]["dash"]["audio"]
+        videoList: List[dict] = palyInfo["dash"]["video"]
+        audioList: List[dict] = palyInfo["dash"]["audio"]
 
         assert len(audioList)
         assert len(videoList)
@@ -349,13 +369,13 @@ def askDownloadType(
     selectWindow = showModal(root)
     selectWindow.title("选择音视频通道")
 
-    main = tk.Frame(selectWindow)
-    main.grid(row=0, column=0, padx=10, pady=10)
+    _main = tk.Frame(selectWindow)
+    _main.grid(row=0, column=0, padx=10, pady=10)
 
-    tk.Label(main, text="视频通道:").grid(row=0, column=0)
-    tk.Label(main, text="音频通道:").grid(row=1, column=0)
+    tk.Label(_main, text="视频通道:").grid(row=0, column=0)
+    tk.Label(_main, text="音频通道:").grid(row=1, column=0)
 
-    videoCombobox = ttk.Combobox(main, width=40)
+    videoCombobox = ttk.Combobox(_main, width=40)
     videoCombobox["values"] = [
         f"{index+1}. {acceptQuality.get(value.get('id',-1),'Unknown')} - {value.get('width')}x{value.get('height')}@{value.get('frameRate')}fps"
         for index, value in enumerate(videoList)
@@ -365,7 +385,7 @@ def askDownloadType(
 
     videoCombobox.grid(row=0, column=1)
 
-    audioCombobox = ttk.Combobox(main, width=40)
+    audioCombobox = ttk.Combobox(_main, width=40)
     audioCombobox["values"] = [
         f"{index+1}. {value.get('id',-1)} - {value.get('codecs')}"
         for index, value in enumerate(audioList)
@@ -375,7 +395,7 @@ def askDownloadType(
 
     audioCombobox.grid(row=1, column=1)
 
-    buttonBox = tk.Frame(main)
+    buttonBox = tk.Frame(_main)
     buttonBox.grid(row=2, column=0, columnspan=2, pady=10, sticky="e")
 
     def confirmed():
@@ -497,7 +517,7 @@ def downloadButtonOnClick():
     )
     requestDownloadThread.start()
     rootLogger.info(
-        f"download button onclick, starting download thread {requestDownloadThread.ident}"
+        f"download button onclick, starting download thread %{requestDownloadThread.ident}"
     )
 
 
