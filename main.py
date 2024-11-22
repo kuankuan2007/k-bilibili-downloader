@@ -2,10 +2,10 @@ import tkinter as tk
 from tkinter import messagebox, filedialog, ttk
 import os
 import requests
-import re
 import json
 import threading
 from typing import *
+import re
 import io
 import pyperclip
 import tempfile
@@ -14,6 +14,19 @@ import time
 import subprocess
 import logging
 import sys
+from PIL import Image, ImageTk
+
+if getattr(sys, "frozen", None):
+    dataBasePath = pathlib.Path(sys._MEIPASS)
+else:
+    dataBasePath = pathlib.Path(os.getcwd()).joinpath("data")
+
+
+def dataPath(filename: str | pathlib.Path):
+    if isinstance(filename, str):
+        filename = pathlib.Path(filename)
+    return dataBasePath.joinpath(filename)
+
 
 tempRoot = pathlib.Path(tempfile.gettempdir()).joinpath(
     f"k-bilibili-download-{time.time()}"
@@ -43,11 +56,15 @@ fileLogHandler.setFormatter(fmter)
 consoleLogHandler.setLevel(logging.INFO)
 consoleLogHandler.setFormatter(fmter)
 
+rootLogger.info(f"base dir: {dataBasePath}")
+root = tk.Tk()
 
-def showModal(master: tk.BaseWidget) -> tk.Toplevel:
+
+def showModal(master: tk.Tk | tk.Toplevel) -> tk.Toplevel:
     window = tk.Toplevel(master)
     window.transient(master)
     window.grab_set()
+    window.geometry("".join(["+" + i for i in master.geometry().split("+")[-2:]]))
     window.resizable(0, 0)
     return window
 
@@ -65,7 +82,7 @@ def _download(
     logger.info(f"start downloading {url}")
 
     try:
-        response = requests.get(url, headers=header, stream=True,timeout=60)
+        response = requests.get(url, headers=header, stream=True, timeout=60)
         logger.info(f"response status code: {response.status_code}")
 
         assert response.status_code // 100 == 2
@@ -116,6 +133,7 @@ def startDownload(
     mergeProgress = ttk.Progressbar(
         _main, orient="horizontal", mode="indeterminate", length=200
     )
+    mergeProgress.start()
 
     videoProgress.grid(row=0, column=1)
     audioProgress.grid(row=1, column=1)
@@ -174,9 +192,9 @@ def startDownload(
             logger.info("download cancel, case by merge fail")
             cancel()
 
-    videoThread: threading.Thread
-    audioThread: threading.Thread
-    mergeThread: threading.Thread
+    videoThread: threading.Thread | None = None
+    audioThread: threading.Thread | None = None
+    mergeThread: threading.Thread | None = None
 
     def _start(t=Literal["video", "audio", "merge"]):
         nonlocal videoThread, audioThread, mergeThread
@@ -252,6 +270,12 @@ def requestDownload():
     ) or re.match("(?:B|b)(?:v|V)[0-9a-zA-Z]{10}", video):
         url = f"https://www.bilibili.com/video/{video}?spm_id_from=player_end_recommend_autoplay"
         logger.info(f"input type is av/bv, transform to url: {url}")
+    elif re.match(
+        re.compile("(?:ep|ss)[1-9][0-9]*", re.I),
+        video,
+    ):
+        url = f"https://www.bilibili.com/bangumi/play/{video}"
+        logger.info(f"input type is ep, transform to url: {url}")
     else:
         logger.info("input type is invalid, return")
         messagebox.showerror("错误", "请输入正确的视频地址或av号/BV号")
@@ -313,8 +337,7 @@ def requestDownload():
         ]:
             try:
                 palyInfo = maper(json.loads(re.findall(i, html)[0]))
-            except Exception as e:
-                print(e)
+            except Exception:
                 continue
             else:
                 flag = True
@@ -460,22 +483,59 @@ def mergeVideo(
     mergeSuccess()
 
 
+class HelpButton(tk.Label):
+    img = ImageTk.PhotoImage(
+        Image.open(dataPath("help.png")).resize((18, 18), Image.LANCZOS)
+    )
+    helpTitle: str
+    helpText: str
+
+    def __init__(self, master, helpTitle: str, helpText: str, **kwargs):
+        super().__init__(
+            master,
+            image=self.img,
+            width=18,
+            height=18,
+            **kwargs,
+            padx=2,
+            pady=2,
+            cursor="hand2",
+        )
+        self.helpTitle = helpTitle
+        self.helpText = helpText
+        self.bind("<Button-1>", self._showHelp)
+
+    def _showHelp(self, *_args, **_kw):
+        messagebox.showinfo(self.helpTitle, self.helpText)
+
+
 rootLogger.info("starting")
 
-root = tk.Tk()
 root.title("视频下载器")
 root.resizable(0, 0)
+try:
+    root.iconphoto(True, tk.PhotoImage(file=str(dataPath("icon.png"))))
+except Exception as e:
+    rootLogger.warning("failed to load icon")
+else:
+    rootLogger.info("icon loaded")
 
 
 main = tk.Frame()
 main.grid(row=0, column=0, padx=10, pady=10)
 
-tk.Label(main, text="视频URL/BV号/AV号:").grid(row=0, column=0, sticky="e")
+tk.Label(main, text="视频URL/ID号:").grid(row=0, column=0, sticky="e")
 
 videoVar = tk.StringVar()
 
 urlEntry = ttk.Entry(main, textvariable=videoVar, width=30)
 urlEntry.grid(row=0, column=1)
+
+HelpButton(
+    main,
+    helpTitle="关于视频URL/ID号",
+    helpText="除了直接的b站链接外，目前还支持：\nBV号、AV号、EP号、SS号",
+).grid(row=0, column=3)
 
 ttk.Button(main, text="粘贴", command=lambda: videoVar.set(pyperclip.paste())).grid(
     row=0, column=2
@@ -489,6 +549,12 @@ cookieEntry.grid(row=1, column=1)
 ttk.Button(main, text="粘贴", command=lambda: cookieVar.set(pyperclip.paste())).grid(
     row=1, column=2
 )
+
+HelpButton(
+    main,
+    helpTitle="关于Cookie",
+    helpText="需要登录后才能下载，可以在浏览器中复制出来",
+).grid(row=1, column=3)
 
 savePathVar = tk.StringVar()
 tk.Label(main, text="保存路径:").grid(row=2, column=0, sticky="e")

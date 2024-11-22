@@ -5,10 +5,10 @@ block_cipher = None
 
 
 a = Analysis(
-    ['e:\\production\\k-bilibili-downloader\\main.py'],
+    ['./main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('./data', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -41,5 +41,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['e:\\production\\k-bilibili-downloader\\logo.ico'],
+    icon=['./data/icon.ico'],
 )
