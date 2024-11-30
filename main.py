@@ -96,7 +96,7 @@ EdgeVersion = subprocess.check_output(
     ]
 ).decode("utf-8")[:-2]
 
-if EdgeVersion == "" or 1 == 1:
+if EdgeVersion == "":
     rootLogger.warning("Edge isn't installed, getting Chrome version")
     ChromeVersion = subprocess.check_output(
         [
