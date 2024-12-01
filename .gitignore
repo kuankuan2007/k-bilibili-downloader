@@ -2,3 +2,5 @@ venv/
 .venv/
 build/
 dist/
+test.py
+chromedriver.exe

@@ -15,6 +15,8 @@ import subprocess
 import logging
 import sys
 from PIL import Image, ImageTk
+import zipfile
+# from rich.progress import track
 
 if getattr(sys, "frozen", None):
     dataBasePath = pathlib.Path(sys._MEIPASS)
@@ -33,6 +35,7 @@ tempRoot = pathlib.Path(tempfile.gettempdir()).joinpath(
 )
 if not tempRoot.exists():
     os.mkdir(tempRoot)
+
 fileLogHandler = logging.FileHandler(
     filename=str(tempRoot.joinpath("log.txt")),
     mode="w",
@@ -57,6 +60,89 @@ consoleLogHandler.setLevel(logging.INFO)
 consoleLogHandler.setFormatter(fmter)
 
 rootLogger.info(f"base dir: {dataBasePath}")
+
+
+def _downloadDriver(url: str, browser: Literal["edge", "chrome"]) -> Union[pathlib.Path, None]:
+    rootLogger.info(f"downloading webdriver, url: {url}")
+    try:
+        response = requests.get(
+            url=url,
+            stream=True,
+            timeout=60,
+        )
+        rootLogger.info(f"response status code: {response.status_code}")
+        zipPath = tempRoot.joinpath("driver.zip")
+        saveIO = io.FileIO(zipPath, "w")
+        for i in response.iter_content(1024):
+            saveIO.write(i)
+        rootLogger.info("download successfully, unextracting")
+        zip = zipfile.ZipFile(zipPath)
+        zip.extractall(tempRoot)
+        rootLogger.info("unextract successfully")
+        if browser == "edge":
+            return tempRoot.joinpath("msedgedriver.exe")
+        else:
+            return tempRoot.joinpath("chromedriver.exe")
+    except:
+        return None
+
+
+browserType: Literal["edge", "chrome", "none"] = "edge"
+driverPath: Union[pathlib.Path, None]
+
+rootLogger.info("getting browser info")
+EdgeVersion = subprocess.check_output(
+    [
+        "powershell",
+        "-command",
+        "&{(Get-Item 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe').VersionInfo.ProductVersion}",
+    ]
+).decode("utf-8")[:-2]
+
+if EdgeVersion == "":
+    rootLogger.warning("Edge isn't installed, getting Chrome version")
+    ChromeVersion = subprocess.check_output(
+        [
+            "powershell",
+            "-command",
+            "&{(Get-Item 'C:\Program Files\Google\Chrome\Application\chrome.exe').VersionInfo.ProductVersion}",
+        ]
+    ).decode("utf-8")[:-2]
+    if ChromeVersion == "":
+        rootLogger.warning("Chrome and Edge aren't installed using classic mode")
+        browserType = "none"
+    else:
+        browserType = "chrome"
+        rootLogger.info(f"Chrome version: {ChromeVersion}")
+        driverPath = _downloadDriver(
+            f"https://storage.googleapis.com/chrome-for-testing-public/{ChromeVersion}/win64/chromedriver-win64.zip",
+            browserType
+        )
+else:
+    browserType = "edge"
+    rootLogger.info(f"Successfully, Edge version: {EdgeVersion}")
+    driverPath = _downloadDriver(
+        f"https://msedgedriver.azureedge.net/{EdgeVersion}/edgedriver_win64.zip",
+        browserType
+    )
+
+if browserType != "none":
+    from selenium import webdriver
+    from selenium.webdriver.chromium.webdriver import ChromiumDriver
+    driver: ChromiumDriver
+    if browserType == "chrome":
+        from selenium.webdriver.chrome.options import Options as ChromeOptions
+        from selenium.webdriver.chrome.service import Service as ChromeService
+        option = ChromeOptions()
+        option.set_capability("goog:loggingPrefs", {"performance": "ALL"})
+        driver = webdriver.Chrome(option, ChromeService(str(driverPath)))
+    else:
+        from selenium.webdriver.edge.options import Options as EdgeOptions
+        from selenium.webdriver.edge.service import Service as EdgeService
+        option = EdgeOptions()
+        option.set_capability("goog:loggingPrefs", {"performance": "ALL"})
+        driver = webdriver.Edge(option, EdgeService(str(driverPath)))
+
 root = tk.Tk()
 
 
@@ -513,6 +599,7 @@ rootLogger.info("starting")
 
 root.title("视频下载器")
 root.resizable(0, 0)
+
 try:
     root.iconphoto(True, tk.PhotoImage(file=str(dataPath("icon.png"))))
 except Exception as e:
