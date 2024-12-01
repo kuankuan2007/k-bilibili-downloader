@@ -7,6 +7,17 @@ import sys
 import os
 import tempfile
 import time
+from . import argparser
+import subprocess
+
+config = argparser.config
+
+logMap = {
+    "INFO": logging.INFO,
+    "DEBUG": logging.DEBUG,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+}
 
 
 def toCallback(func: Callable, *args, **kwargs) -> Callable:
@@ -64,6 +75,7 @@ def getHeader(cookie: str | None = None, referer: str | None = None) -> dict:
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
     }
 
+
 def getPageUrl(vid: str):
     if re.match(
         r"^(((ht|f)tps?):\/\/)?([^!@#$%^&*?.\s-]([^!@#$%^&*?.\s]{0,63}[^!@#$%^&*?.\s])?\.)+[a-z]{2,6}\/?",
@@ -82,6 +94,7 @@ def getPageUrl(vid: str):
         return f"https://www.bilibili.com/bangumi/play/{vid}"
     return None
 
+
 if getattr(sys, "frozen", None):
     dataBasePath = pathlib.Path(sys._MEIPASS)
 else:
@@ -93,8 +106,17 @@ def dataPath(filename: str | pathlib.Path):
         filename = pathlib.Path(filename)
     return dataBasePath.joinpath(filename)
 
-def errorLogInfo(e:BaseException):
+
+def errorLogInfo(e: BaseException):
     return f"{e.__class__.__name__}:{str(e)}"
+
+
+def testFfmpeg(path: str):
+    try:
+        subprocess.call([path, "-version"])
+    except Exception:
+        return False
+    return True
 
 
 tempRoot = pathlib.Path(tempfile.gettempdir()).joinpath(
@@ -121,9 +143,9 @@ rootLogger.addHandler(fileLogHandler)
 rootLogger.addHandler(consoleLogHandler)
 rootLogger.setLevel(logging.DEBUG)
 
-fileLogHandler.setLevel(logging.INFO)
+fileLogHandler.setLevel(logMap[config.log_level])
 fileLogHandler.setFormatter(fmter)
-consoleLogHandler.setLevel(logging.INFO)
+consoleLogHandler.setLevel(logMap[config.log_level])
 consoleLogHandler.setFormatter(fmter)
 
 

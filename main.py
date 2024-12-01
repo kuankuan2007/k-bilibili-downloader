@@ -13,9 +13,6 @@ from PIL import Image, ImageTk
 import lib.getPlayInfo as getPlayInfo
 
 
-
-
-
 rootLogger = util.getLogger("root")
 
 rootLogger.info(f"base dir: {util.dataBasePath}")
@@ -44,7 +41,7 @@ def _download(
     logger.info(f"start downloading {url}")
 
     try:
-        response = requests.get(url, headers=header, stream=True, timeout=60)
+        response = requests.get(url, headers=header, stream=True, timeout=util.timeout)
         logger.info(f"response status code: {response.status_code}")
 
         assert response.status_code // 100 == 2
@@ -523,5 +520,11 @@ downloadButton = ttk.Button(main, text="下载", command=downloadButtonOnClick)
 downloadButton.grid(row=3, column=0, pady=10, columnspan=3, sticky="we")
 
 rootLogger.info("Done")
+
+if util.testFfmpeg(util.config.ffmpeg):
+    rootLogger.info("ffmpeg test passed")
+else:
+    rootLogger.critical("ffmpeg test failed")
+    messagebox.showerror("错误", "ffmpeg测试失败，请检查ffmpeg依赖状态")
 
 root.mainloop()

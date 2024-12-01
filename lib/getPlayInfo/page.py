@@ -11,7 +11,7 @@ def get(video: str, cookie: str):
     headers = util.getHeader(cookie, url)
     try:
         logger.info(f"request page url: {url}, headers: {headers}")
-        response = requests.get(url, headers=headers, timeout=60)
+        response = requests.get(url, headers=headers, timeout=util.timeout)
         logger.info(f"response status code: {response.status_code}")
         assert response.status_code // 100 == 2
         html = response.text
