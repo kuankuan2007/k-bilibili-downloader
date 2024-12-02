@@ -70,54 +70,28 @@ def startDownload(
     audioPath = util.tempRoot.joinpath(f"audio-{time.time()}.tmp")
 
     logger.info(f"videoPath: {videoPath}, audioPath: {audioPath}")
+    def cancel():
+        nonlocal cancelFlag
+        logger.info("download cancel")
+        close()
+        if videoThread is not None:
+            videoThread._stop()
+        if audioThread is not None:
+            audioThread._stop()
+        if mergeThread is not None:
+            mergeThread._stop()
+        logger.info("download cancel succeed")
+        cancelFlag = True
 
-    progressWindow = util.showModal(rootWindow)
-    progressWindow.title("下载进度")
-
-    _main = tk.Frame(progressWindow)
-    _main.grid(column=0, row=0, padx=10, pady=10)
-
-    tk.Label(_main, text="视频").grid(row=0, column=0, sticky="e")
-    tk.Label(_main, text="音频").grid(row=1, column=0, sticky="e")
-    tk.Label(_main, text="转码").grid(row=2, column=0, sticky="e")
-
-    videoProgress = ttk.Progressbar(
-        _main, orient="horizontal", mode="determinate", length=200
+    close, (canOK, _cannotOK), (videoProgress, audioProgress, mergeProgress) = (
+        util.dialog.showProgress("下载进度", ["视频", "音频", "转码"], cancel)
     )
-    audioProgress = ttk.Progressbar(
-        _main, orient="horizontal", mode="determinate", length=200
-    )
-    mergeProgress = ttk.Progressbar(
-        _main, orient="horizontal", mode="indeterminate", length=200
-    )
+
+    mergeProgress.config(mode="indeterminate")
     mergeProgress.start()
 
-    videoProgress.grid(row=0, column=1)
-    audioProgress.grid(row=1, column=1)
-    mergeProgress.grid(row=2, column=1)
-
-    buttonBox = tk.Frame(_main)
-    buttonBox.grid(row=3, column=0, columnspan=2, sticky="E")
-
-    def cancel():
-        logger.info("download cancel")
-        for i in [videoThread, audioThread, mergeThread]:
-            try:
-                i._stop()
-            except Exception:
-                pass
-        close()
-
-    def close():
-        progressWindow.destroy()
-        logger.info("window closed")
-
-    ttk.Button(buttonBox, text="取消", command=cancel).grid(row=0, column=0)
-
-    okButton = ttk.Button(buttonBox, text="确定", state="disabled")
-    okButton.grid(column=1, row=0)
-
     succeed = 0
+    cancelFlag = False
 
     def downloadSuccess():
         nonlocal succeed
@@ -128,6 +102,8 @@ def startDownload(
 
     def fail(t=Literal["video", "audio"]):
         logger.info(f"{t} download failed")
+        if cancelFlag:
+            return
         if messagebox.askokcancel("错误", f"{t}下载失败，是否重试"):
             logger.info(f"{t} download retry")
             _start(t)
@@ -136,9 +112,9 @@ def startDownload(
             cancel()
 
     def mergeSuccess():
-        close()
+        canOK()
+        util.dialog.showinfo("下载完成", "下载完成")
         logger.info("merge succeed, download complete")
-        messagebox.showinfo("完成", "下载完成")
 
     def mergeFail():
         logger.info("merge failed")
@@ -208,10 +184,15 @@ def askDownloadPart(
 
     util.dialog.askToSelect(
         "选择要下载的部分",
-        [(
-            "片段",
-            [f"{index+1}. {value['title']}" for index, value in enumerate(videoList)],
-        )],
+        [
+            (
+                "片段",
+                [
+                    f"{index+1}. {value['title']}"
+                    for index, value in enumerate(videoList)
+                ],
+            )
+        ],
         callback=lambda x: callback(videoList[x][0]),
     )
 

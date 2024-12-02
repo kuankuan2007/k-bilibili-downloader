@@ -58,3 +58,64 @@ def askToSelect(
 
     ttk.Button(buttonBox, text="确定", command=confirmed).grid(row=0, column=1, padx=10)
     ttk.Button(buttonBox, text="取消", command=close).grid(row=0, column=0, padx=10)
+
+
+def showProgress(
+    title: str,
+    progressName: List[str],
+    _cancel: Callable[[], None],
+    master: tk.Tk | tk.Toplevel = util.rootWindow,
+    length: int = 300,
+) -> Tuple[
+    Callable[[], None],
+    Tuple[Callable[[], None], Callable[[], None]],
+    Tuple[ttk.Progressbar, ...],
+]:
+    logger = util.getLogger("showProgress")
+    window = util.showModal(master)
+    window.title(title)
+
+    result: List[ttk.Progressbar] = []
+
+    for index, name in enumerate(progressName):
+        tk.Label(window, text=name).grid(
+            row=index, column=0, padx=5, pady=5, sticky="e"
+        )
+        progress = ttk.Progressbar(
+            window, orient="horizontal", mode="determinate", length=length
+        )
+        progress.grid(row=index, column=1, padx=5, sticky="w")
+        result.append(progress)
+
+    buttonBox = tk.Frame(window)
+    buttonBox.grid(row=len(progressName), column=0, columnspan=2, pady=5, sticky="e")
+
+    def ok():
+        """
+        Callback function for the "OK" button.
+        Closes the window.
+        """
+        close()
+    def _cancel():
+        """
+        Callback function for the "Cancel" button.
+        Calls the `cancel` function and closes the window.
+        """
+        _cancel()
+        close()
+    def close():
+        logger.info("window closed")
+        window.destroy()
+
+    okButton = ttk.Button(buttonBox, text="确定", command=ok, state=tk.DISABLED)
+    okButton.grid(row=0, column=1, padx=5)
+    ttk.Button(buttonBox, text="取消", command=_cancel).grid(row=0, column=0, padx=5)
+
+    return (
+        close,
+        (
+            lambda: okButton.config(state=tk.NORMAL),
+            lambda: okButton.config(state=tk.DISABLED),
+        ),
+        tuple(result),
+    )
