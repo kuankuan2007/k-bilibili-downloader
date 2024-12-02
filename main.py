@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox, filedialog, ttk
 import requests
-import lib.util as util
+
 import threading
 from typing import *
 import io
@@ -10,7 +10,15 @@ import pathlib
 import time
 import subprocess
 from PIL import Image, ImageTk
+
+import lib.argparser as argParser
+
+if __name__ == "__main__":
+    argParser.parse()
+
 import lib.getPlayInfo as getPlayInfo
+import lib.util as util
+import lib.types as types
 
 
 rootLogger = util.getLogger("root")
@@ -72,6 +80,9 @@ def startDownload(
     logger.info(f"videoPath: {videoPath}, audioPath: {audioPath}")
     def cancel():
         nonlocal cancelFlag
+        if cancelFlag:
+            return
+        cancelFlag = True
         logger.info("download cancel")
         close()
         if videoThread is not None:
@@ -81,7 +92,6 @@ def startDownload(
         if mergeThread is not None:
             mergeThread._stop()
         logger.info("download cancel succeed")
-        cancelFlag = True
 
     close, (canOK, _cannotOK), (videoProgress, audioProgress, mergeProgress) = (
         util.dialog.showProgress("下载进度", ["视频", "音频", "转码"], cancel)
@@ -178,8 +188,8 @@ def startDownload(
 
 
 def askDownloadPart(
-    videoList: List[dict],
-    callback: Callable[[dict], None],
+    videoList: List[types.VideoPart],
+    callback: Callable[[types.VideoPart], None],
 ):
 
     util.dialog.askToSelect(
@@ -188,7 +198,7 @@ def askDownloadPart(
             (
                 "片段",
                 [
-                    f"{index+1}. {value['title']}"
+                    f"{index+1}. {value.title}"
                     for index, value in enumerate(videoList)
                 ],
             )
@@ -224,7 +234,7 @@ def requestDownload():
 def getPlayList(video: str, cookie: str, savePath: str):
     logger = util.getLogger("getPlayList")
     for i in (getPlayInfo.api, getPlayInfo.page):
-        res: List[dict] | None = i.get(video, cookie)
+        res: List[types.VideoPart] | None = i.get(video, cookie)
         if res is None:
             logger.warning("Play list not found")
             return
@@ -243,10 +253,10 @@ def getPlayList(video: str, cookie: str, savePath: str):
             return
 
 
-def getPlayUrl(videoInfo: dict, cookie: str, savePath: str, video: str):
+def getPlayUrl(videoInfo: types.VideoPart, cookie: str, savePath: str, video: str):
     logger = util.getLogger("getPlayUrl")
 
-    playinfo: Dict = videoInfo["playinfo"]()
+    playinfo: types.PlayInfo = videoInfo.playinfo()
 
     logger.info("start ask download type")
     askDownloadType(
@@ -440,7 +450,7 @@ rootLogger.info("Done")
 if util.testFfmpeg(util.config.ffmpeg):
     rootLogger.info("ffmpeg test passed")
 else:
-    rootLogger.critical("ffmpeg test failed")
+    rootLogger.warning("ffmpeg test failed")
     messagebox.showerror("错误", "ffmpeg测试失败，请检查ffmpeg依赖状态")
 
 rootWindow.mainloop()

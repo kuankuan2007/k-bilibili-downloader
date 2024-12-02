@@ -1,3 +1,5 @@
+from typing import *
+import lib.types as types
 import argparse
 
 argParser = argparse.ArgumentParser()
@@ -13,4 +15,9 @@ argParser.add_argument(
 
 argParser.add_argument("-f", "--ffmpeg", type=str, help="ffmpeg path", default="ffmpeg")
 
-config = argParser.parse_args()
+
+config = types.Config()
+
+def parse():
+    global config
+    config = types.Config(**vars(argParser.parse_args()))

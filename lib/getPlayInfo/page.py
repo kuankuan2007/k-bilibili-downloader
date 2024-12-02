@@ -3,9 +3,10 @@ import requests
 import re
 import json
 import lib.util as util
+import lib.types as types
 
 
-def get(video: str, cookie: str):
+def get(video: str, cookie: str) -> list[types.VideoPart]:
     logger = util.getLogger("AnalyzingPage")
     url = util.getPageUrl(video)
     headers = util.getHeader(cookie, url)
@@ -56,12 +57,12 @@ def get(video: str, cookie: str):
             logger.warning("Can't find playinfo in page")
             raise Exception("Can't find playinfo in page")
         return [
-            {
-                "title": util.optionalChain(
+            types.VideoPart(
+                title=util.optionalChain(
                     re.findall(r"<title.*>(.*)</title>", html), 0, default="Unknown"
                 ),
-                "playinfo": lambda: palyInfo,
-            }
+                playinfo=lambda: palyInfo,
+            )
         ]
     except Exception as e:
         logger.warning(f"Can't parse page with error {util.errorLogInfo(e)}, return")

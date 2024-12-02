@@ -6,7 +6,7 @@ import sys
 import os
 import tempfile
 import time
-from . import argparser
+from lib.argparser import config
 import subprocess
 import tkinter as tk
 rootWindow = tk.Tk()
@@ -22,8 +22,6 @@ def showModal(master: tk.Tk | tk.Toplevel = rootWindow) -> tk.Toplevel:
     window.resizable(0, 0)
     return window
 
-
-config = argparser.config
 
 logMap = {
     "INFO": logging.INFO,
