@@ -14,7 +14,7 @@ def getPlayInfo(video: dict, cookie: str):
             "fnval": "4048",
         },
         headers=util.getHeader(cookie),
-        timeout=util.timeout,
+        timeout=util.config.timeout,
     ).json()["data"]
 
 
@@ -32,7 +32,7 @@ def get(video: str, cookie: str):
             "https://api.bilibili.com/x/player/pagelist",
             params=info,
             headers=util.getHeader(cookie),
-            timeout=util.timeout,
+            timeout=util.config.timeout,
         ).json()["data"]
         assert pagelist and type(pagelist) == list, "Can't get page list"
         logger.info(f"Got {len(pagelist)} pages")

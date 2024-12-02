@@ -1,5 +1,4 @@
 from typing import *
-import tkinter.messagebox as messagebox
 import logging
 import re
 import pathlib
@@ -9,6 +8,20 @@ import tempfile
 import time
 from . import argparser
 import subprocess
+import tkinter as tk
+rootWindow = tk.Tk()
+
+from . import dialog
+
+
+def showModal(master: tk.Tk | tk.Toplevel = rootWindow) -> tk.Toplevel:
+    window = tk.Toplevel(master)
+    window.transient(master)
+    window.grab_set()
+    window.geometry("".join(["+" + i for i in master.geometry().split("+")[-2:]]))
+    window.resizable(0, 0)
+    return window
+
 
 config = argparser.config
 
@@ -113,7 +126,7 @@ def errorLogInfo(e: BaseException):
 
 def testFfmpeg(path: str):
     try:
-        subprocess.call([path, "-version"])
+        subprocess.call([path, "-version"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     except Exception:
         return False
     return True
@@ -149,4 +162,13 @@ consoleLogHandler.setLevel(logMap[config.log_level])
 consoleLogHandler.setFormatter(fmter)
 
 
-__all__ = ["toCallback", "messagebox", "getLogger", "optionalChain", "getHeader"]
+__all__ = [
+    "toCallback",
+    "dialog",
+    "getLogger",
+    "optionalChain",
+    "getHeader",
+    "getPageUrl",
+    "dataPath",
+    "testFfmpeg",
+]

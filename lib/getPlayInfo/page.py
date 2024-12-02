@@ -11,13 +11,13 @@ def get(video: str, cookie: str):
     headers = util.getHeader(cookie, url)
     try:
         logger.info(f"request page url: {url}, headers: {headers}")
-        response = requests.get(url, headers=headers, timeout=util.timeout)
+        response = requests.get(url, headers=headers, timeout=util.config.timeout)
         logger.info(f"response status code: {response.status_code}")
         assert response.status_code // 100 == 2
         html = response.text
     except Exception as e:
         logger.warning(f"Can't get page response with error {util.errorLogInfo(e)}")
-        util.messagebox.showerror(
+        util.dialog.showerror(
             "错误",
             f"请求错误，无法获取页面信息\n{util.errorLogInfo(e)}",
         )
@@ -65,5 +65,5 @@ def get(video: str, cookie: str):
         ]
     except Exception as e:
         logger.warning(f"Can't parse page with error {util.errorLogInfo(e)}, return")
-        util.messagebox.showerror("错误", "解析错误，无法获取视频信息")
+        util.dialog.showerror("错误", "解析错误，无法获取视频信息")
         return
