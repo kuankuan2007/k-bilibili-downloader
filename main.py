@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox, filedialog, ttk
 import requests
-import lib.util as util
+
 import threading
 from typing import *
 import io
@@ -10,22 +10,22 @@ import pathlib
 import time
 import subprocess
 from PIL import Image, ImageTk
+
+import lib.argparser as argParser
+
+if __name__ == "__main__":
+    argParser.parse()
+
 import lib.getPlayInfo as getPlayInfo
+import lib.util as util
+import lib.types as types
 
 
 rootLogger = util.getLogger("root")
 
 rootLogger.info(f"base dir: {util.dataBasePath}")
-root = tk.Tk()
 
-
-def showModal(master: tk.Tk | tk.Toplevel) -> tk.Toplevel:
-    window = tk.Toplevel(master)
-    window.transient(master)
-    window.grab_set()
-    window.geometry("".join(["+" + i for i in master.geometry().split("+")[-2:]]))
-    window.resizable(0, 0)
-    return window
+rootWindow = util.rootWindow
 
 
 def _download(
@@ -41,7 +41,9 @@ def _download(
     logger.info(f"start downloading {url}")
 
     try:
-        response = requests.get(url, headers=header, stream=True, timeout=util.timeout)
+        response = requests.get(
+            url, headers=header, stream=True, timeout=util.config.timeout
+        )
         logger.info(f"response status code: {response.status_code}")
 
         assert response.status_code // 100 == 2
@@ -76,54 +78,30 @@ def startDownload(
     audioPath = util.tempRoot.joinpath(f"audio-{time.time()}.tmp")
 
     logger.info(f"videoPath: {videoPath}, audioPath: {audioPath}")
+    def cancel():
+        nonlocal cancelFlag
+        if cancelFlag:
+            return
+        cancelFlag = True
+        logger.info("download cancel")
+        close()
+        if videoThread is not None:
+            videoThread._stop()
+        if audioThread is not None:
+            audioThread._stop()
+        if mergeThread is not None:
+            mergeThread._stop()
+        logger.info("download cancel succeed")
 
-    progressWindow = showModal(root)
-    progressWindow.title("下载进度")
-
-    _main = tk.Frame(progressWindow)
-    _main.grid(column=0, row=0, padx=10, pady=10)
-
-    tk.Label(_main, text="视频").grid(row=0, column=0, sticky="e")
-    tk.Label(_main, text="音频").grid(row=1, column=0, sticky="e")
-    tk.Label(_main, text="转码").grid(row=2, column=0, sticky="e")
-
-    videoProgress = ttk.Progressbar(
-        _main, orient="horizontal", mode="determinate", length=200
+    close, (canOK, _cannotOK), (videoProgress, audioProgress, mergeProgress) = (
+        util.dialog.showProgress("下载进度", ["视频", "音频", "转码"], cancel)
     )
-    audioProgress = ttk.Progressbar(
-        _main, orient="horizontal", mode="determinate", length=200
-    )
-    mergeProgress = ttk.Progressbar(
-        _main, orient="horizontal", mode="indeterminate", length=200
-    )
+
+    mergeProgress.config(mode="indeterminate")
     mergeProgress.start()
 
-    videoProgress.grid(row=0, column=1)
-    audioProgress.grid(row=1, column=1)
-    mergeProgress.grid(row=2, column=1)
-
-    buttonBox = tk.Frame(_main)
-    buttonBox.grid(row=3, column=0, columnspan=2, sticky="E")
-
-    def cancel():
-        logger.info("download cancel")
-        for i in [videoThread, audioThread, mergeThread]:
-            try:
-                i._stop()
-            except Exception:
-                pass
-        close()
-
-    def close():
-        progressWindow.destroy()
-        logger.info("window closed")
-
-    ttk.Button(buttonBox, text="取消", command=cancel).grid(row=0, column=0)
-
-    okButton = ttk.Button(buttonBox, text="确定", state="disabled")
-    okButton.grid(column=1, row=0)
-
     succeed = 0
+    cancelFlag = False
 
     def downloadSuccess():
         nonlocal succeed
@@ -134,6 +112,8 @@ def startDownload(
 
     def fail(t=Literal["video", "audio"]):
         logger.info(f"{t} download failed")
+        if cancelFlag:
+            return
         if messagebox.askokcancel("错误", f"{t}下载失败，是否重试"):
             logger.info(f"{t} download retry")
             _start(t)
@@ -142,9 +122,9 @@ def startDownload(
             cancel()
 
     def mergeSuccess():
-        close()
+        canOK()
+        util.dialog.showinfo("下载完成", "下载完成")
         logger.info("merge succeed, download complete")
-        messagebox.showinfo("完成", "下载完成")
 
     def mergeFail():
         logger.info("merge failed")
@@ -208,46 +188,23 @@ def startDownload(
 
 
 def askDownloadPart(
-    videoList: List[dict],
-    callback: Callable[[dict], None],
+    videoList: List[types.VideoPart],
+    callback: Callable[[types.VideoPart], None],
 ):
-    logger = util.getLogger("askDownloadPart")
 
-    selectWindow = showModal(root)
-    selectWindow.title("选择要下载的部分")
-
-    _main = tk.Frame(selectWindow)
-    _main.grid(row=0, column=0, padx=10, pady=10)
-
-    tk.Label(_main, text="视频:").grid(row=0, column=0)
-
-    combobox = ttk.Combobox(_main, width=40)
-    combobox["values"] = [
-        f"{index+1}. {value['title']}" for index, value in enumerate(videoList)
-    ]
-    combobox.current(0)
-    combobox.config(state="readonly")
-
-    combobox.grid(row=0, column=1)
-
-    buttonBox = tk.Frame(_main)
-    buttonBox.grid(row=2, column=0, columnspan=2, pady=10, sticky="e")
-
-    def confirmed():
-        logger.info(f"download part confirmed by user, v:{combobox.current()}")
-        video = videoList[combobox.current()]
-        close()
-        logger.info("End this life cycle")
-        callback(video)
-
-    def close():
-        logger.info("window closed")
-        selectWindow.destroy()
-
-    ttk.Button(buttonBox, text="取消", command=close).grid(row=0, column=0)
-    ttk.Button(buttonBox, text="确认", command=confirmed).grid(row=0, column=1, padx=2)
-
-    logger.info("window initialized")
+    util.dialog.askToSelect(
+        "选择要下载的部分",
+        [
+            (
+                "片段",
+                [
+                    f"{index+1}. {value.title}"
+                    for index, value in enumerate(videoList)
+                ],
+            )
+        ],
+        callback=lambda x: callback(videoList[x][0]),
+    )
 
 
 def requestDownload():
@@ -277,7 +234,7 @@ def requestDownload():
 def getPlayList(video: str, cookie: str, savePath: str):
     logger = util.getLogger("getPlayList")
     for i in (getPlayInfo.api, getPlayInfo.page):
-        res: List[dict] | None = i.get(video, cookie)
+        res: List[types.VideoPart] | None = i.get(video, cookie)
         if res is None:
             logger.warning("Play list not found")
             return
@@ -296,10 +253,10 @@ def getPlayList(video: str, cookie: str, savePath: str):
             return
 
 
-def getPlayUrl(videoInfo: dict, cookie: str, savePath: str, video: str):
+def getPlayUrl(videoInfo: types.VideoPart, cookie: str, savePath: str, video: str):
     logger = util.getLogger("getPlayUrl")
 
-    playinfo: Dict = videoInfo["playinfo"]()
+    playinfo: types.PlayInfo = videoInfo.playinfo()
 
     logger.info("start ask download type")
     askDownloadType(
@@ -316,58 +273,27 @@ def askDownloadType(
     acceptQuality: Dict[int, str],
     callback: Callable[[Dict, Dict], None],
 ):
-    logger = util.getLogger("askDownloadType")
 
-    selectWindow = showModal(root)
-    selectWindow.title("选择音视频通道")
-
-    _main = tk.Frame(selectWindow)
-    _main.grid(row=0, column=0, padx=10, pady=10)
-
-    tk.Label(_main, text="视频通道:").grid(row=0, column=0)
-    tk.Label(_main, text="音频通道:").grid(row=1, column=0)
-
-    videoCombobox = ttk.Combobox(_main, width=40)
-    videoCombobox["values"] = [
-        f"{index+1}. {acceptQuality.get(value.get('id',-1),'Unknown')} - {value.get('width')}x{value.get('height')}@{value.get('frameRate')}fps"
-        for index, value in enumerate(videoList)
-    ]
-    videoCombobox.current(0)
-    videoCombobox.config(state="readonly")
-
-    videoCombobox.grid(row=0, column=1)
-
-    audioCombobox = ttk.Combobox(_main, width=40)
-    audioCombobox["values"] = [
-        f"{index+1}. {value.get('id',-1)} - {value.get('codecs')}"
-        for index, value in enumerate(audioList)
-    ]
-    audioCombobox.current(0)
-    audioCombobox.config(state="readonly")
-
-    audioCombobox.grid(row=1, column=1)
-
-    buttonBox = tk.Frame(_main)
-    buttonBox.grid(row=2, column=0, columnspan=2, pady=10, sticky="e")
-
-    def confirmed():
-        logger.info(
-            f"download information confirmed by user, v:{videoCombobox.current()} a:{audioCombobox.current()}"
-        )
-        video = videoList[videoCombobox.current()]
-        audio = audioList[audioCombobox.current()]
-        close()
-        logger.info("End this life cycle")
-        callback(video, audio)
-
-    def close():
-        logger.info("window closed")
-        selectWindow.destroy()
-
-    ttk.Button(buttonBox, text="取消", command=close).grid(row=0, column=0)
-    ttk.Button(buttonBox, text="确认", command=confirmed).grid(row=0, column=1, padx=2)
-
-    logger.info("window initialized")
+    util.dialog.askToSelect(
+        "选择音视频通道",
+        [
+            (
+                "视频",
+                [
+                    f"{index+1}. {acceptQuality.get(value.get('id',-1),'Unknown')} - {value.get('width')}x{value.get('height')}@{value.get('frameRate')}fps"
+                    for index, value in enumerate(videoList)
+                ],
+            ),
+            (
+                "音频",
+                [
+                    f"{index+1}. {value.get('id',-1)} - {value.get('codecs')}"
+                    for index, value in enumerate(audioList)
+                ],
+            ),
+        ],
+        callback=lambda x: callback(videoList[x[0]], audioList[x[1]]),
+    )
 
 
 def mergeVideo(
@@ -440,10 +366,10 @@ class HelpButton(tk.Label):
 
 rootLogger.info("starting")
 
-root.title("视频下载器")
-root.resizable(0, 0)
+rootWindow.title("视频下载器")
+rootWindow.resizable(0, 0)
 try:
-    root.iconphoto(True, tk.PhotoImage(file=str(util.dataPath("icon.png"))))
+    rootWindow.iconphoto(True, tk.PhotoImage(file=str(util.dataPath("icon.png"))))
 except Exception as e:
     rootLogger.warning("failed to load icon")
 else:
@@ -498,7 +424,7 @@ ttk.Button(
             title="选择保存路径",
             filetypes=[("视频文件", ["*.mp4"]), ("所有文件", "*.*")],
             defaultextension=".mp4",
-            parent=root,
+            parent=rootWindow,
         )
     ),
 ).grid(row=2, column=2)
@@ -524,7 +450,7 @@ rootLogger.info("Done")
 if util.testFfmpeg(util.config.ffmpeg):
     rootLogger.info("ffmpeg test passed")
 else:
-    rootLogger.critical("ffmpeg test failed")
+    rootLogger.warning("ffmpeg test failed")
     messagebox.showerror("错误", "ffmpeg测试失败，请检查ffmpeg依赖状态")
 
-root.mainloop()
+rootWindow.mainloop()

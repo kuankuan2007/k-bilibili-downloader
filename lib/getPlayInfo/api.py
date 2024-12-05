@@ -2,9 +2,10 @@ from typing import *
 import requests
 import re
 import lib.util as util
+import lib.types as types
 
 
-def getPlayInfo(video: dict, cookie: str):
+def getPlayInfo(video: dict, cookie: str) -> dict:
     return requests.get(
         "https://api.bilibili.com/x/player/wbi/playurl",
         params={
@@ -14,7 +15,7 @@ def getPlayInfo(video: dict, cookie: str):
             "fnval": "4048",
         },
         headers=util.getHeader(cookie),
-        timeout=util.timeout,
+        timeout=util.config.timeout,
     ).json()["data"]
 
 
@@ -32,17 +33,17 @@ def get(video: str, cookie: str):
             "https://api.bilibili.com/x/player/pagelist",
             params=info,
             headers=util.getHeader(cookie),
-            timeout=util.timeout,
+            timeout=util.config.timeout,
         ).json()["data"]
         assert pagelist and type(pagelist) == list, "Can't get page list"
         logger.info(f"Got {len(pagelist)} pages")
         return [
-            {
-                "title": i["part"],
-                "playinfo": util.toCallback(
+            types.VideoPart(
+                title=i["part"],
+                playinfo=util.toCallback(
                     getPlayInfo, {**info, "cid": i["cid"]}, cookie
                 ),
-            }
+            )
             for i in pagelist
         ]
     except Exception as e:
