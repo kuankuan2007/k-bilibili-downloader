@@ -1,4 +1,6 @@
 from . import api
-from . import page
+# from . import getPage
+from . import pageRawPlayinfo
+from . import getSeason
 
-__all__ = ["api", "page"]
+li = [api, getSeason, pageRawPlayinfo]

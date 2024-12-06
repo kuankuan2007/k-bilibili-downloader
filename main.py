@@ -78,6 +78,7 @@ def startDownload(
     audioPath = util.tempRoot.joinpath(f"audio-{time.time()}.tmp")
 
     logger.info(f"videoPath: {videoPath}, audioPath: {audioPath}")
+
     def cancel():
         nonlocal cancelFlag
         if cancelFlag:
@@ -197,13 +198,10 @@ def askDownloadPart(
         [
             (
                 "片段",
-                [
-                    f"{index+1}. {value.title}"
-                    for index, value in enumerate(videoList)
-                ],
+                [f"{index+1}. {value.title}" for index, value in enumerate(videoList)],
             )
         ],
-        callback=lambda x: callback(videoList[x][0]),
+        callback=lambda x: callback(videoList[x[0]]),
     )
 
 
@@ -233,7 +231,7 @@ def requestDownload():
 
 def getPlayList(video: str, cookie: str, savePath: str):
     logger = util.getLogger("getPlayList")
-    for i in (getPlayInfo.api, getPlayInfo.page):
+    for i in getPlayInfo.li:
         res: List[types.VideoPart] | None = i.get(video, cookie)
         if res is None:
             logger.warning("Play list not found")
@@ -389,7 +387,7 @@ urlEntry.grid(row=0, column=1)
 HelpButton(
     main,
     helpTitle="关于视频URL/ID号",
-    helpText="除了直接的b站链接外，目前还支持：\nBV号、AV号、EP号、SS号",
+    helpText="除了直接的b站链接外，目前还支持：\nBV号、AV号、EP号、SS号、MD号",
 ).grid(row=0, column=3)
 
 ttk.Button(main, text="粘贴", command=lambda: videoVar.set(pyperclip.paste())).grid(

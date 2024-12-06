@@ -9,8 +9,8 @@ def getPlayInfo(video: dict, cookie: str) -> dict:
     return requests.get(
         "https://api.bilibili.com/x/player/wbi/playurl",
         params={
-            "avid": video["aid"],
-            "bvid": video["bvid"],
+            "avid": video.get("aid"),
+            "bvid": video.get("bvid"),
             "cid": video["cid"],
             "fnval": "4048",
         },

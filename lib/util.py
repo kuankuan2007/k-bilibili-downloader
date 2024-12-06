@@ -9,6 +9,7 @@ import time
 from lib.argparser import config
 import subprocess
 import tkinter as tk
+
 rootWindow = tk.Tk()
 
 from . import dialog
@@ -72,7 +73,7 @@ def optionalChain(d: dict | list, *keys: Any, default: Any = None) -> Any:
     return d
 
 
-def getHeader(cookie: str | None = None, referer: str | None = None) -> dict:
+def getHeader(cookie: str | None = None, referer: str | None = None, **kwargs) -> dict:
     return {
         "Referer": referer,
         "Cookie": cookie,
@@ -84,6 +85,7 @@ def getHeader(cookie: str | None = None, referer: str | None = None) -> dict:
         "sec-fetch-mode": "cors",
         "sec-fetch-site": "same-site",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
+        **kwargs,
     }
 
 
@@ -103,6 +105,11 @@ def getPageUrl(vid: str):
         vid,
     ):
         return f"https://www.bilibili.com/bangumi/play/{vid}"
+    elif re.match(
+        re.compile("md[1-9][0-9]*", re.I),
+        vid,
+    ):
+        return f"https://www.bilibili.com/bangumi/media/{vid}"
     return None
 
 
@@ -124,7 +131,9 @@ def errorLogInfo(e: BaseException):
 
 def testFfmpeg(path: str):
     try:
-        subprocess.call([path, "-version"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        subprocess.call(
+            [path, "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
     except Exception:
         return False
     return True
