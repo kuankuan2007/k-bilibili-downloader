@@ -1,7 +1,5 @@
 import tkinter as tk
 from tkinter import messagebox, filedialog, ttk
-import requests
-
 import threading
 from typing import *
 import io
@@ -28,41 +26,7 @@ rootLogger.info(f"base dir: {util.dataBasePath}")
 rootWindow = util.rootWindow
 
 
-def _download(
-    url: str,
-    header: Dict[str, str],
-    saveIO: io.FileIO,
-    succeed: Callable[[], None],
-    fail: Callable[[], None],
-    progress: ttk.Progressbar,
-):
-    logger = util.getLogger("_download")
 
-    logger.info(f"start downloading {url}")
-
-    try:
-        response = requests.get(
-            url, headers=header, stream=True, timeout=util.config.timeout
-        )
-        logger.info(f"response status code: {response.status_code}")
-
-        assert response.status_code // 100 == 2
-
-        progress["maximum"] = int(response.headers["Content-Length"])
-
-        for i in response.iter_content(1024):
-            saveIO.write(i)
-            progress["value"] += len(i)
-            progress.update()
-
-    except Exception as e:
-        logger.warning(f"download failed: {util.errorLogInfo(e)}: {e}")
-
-        fail()
-    else:
-        saveIO.close()
-        logger.info("download succeed")
-        succeed()
 
 
 def startDownload(
@@ -78,6 +42,7 @@ def startDownload(
     audioPath = util.tempRoot.joinpath(f"audio-{time.time()}.tmp")
 
     logger.info(f"videoPath: {videoPath}, audioPath: {audioPath}")
+
     def cancel():
         nonlocal cancelFlag
         if cancelFlag:
@@ -144,7 +109,7 @@ def startDownload(
         logger.info(f"start thread: {t}")
         if t == "video":
             videoThread = threading.Thread(
-                target=_download,
+                target=util.download,
                 args=(
                     videoInfo["baseUrl"],
                     header,
@@ -159,7 +124,7 @@ def startDownload(
             logger.info(f"video thread started in thread {videoThread.ident}")
         elif t == "audio":
             audioThread = threading.Thread(
-                target=_download,
+                target=util.download,
                 args=(
                     audioInfo["baseUrl"],
                     header,
@@ -197,10 +162,7 @@ def askDownloadPart(
         [
             (
                 "片段",
-                [
-                    f"{index+1}. {value.title}"
-                    for index, value in enumerate(videoList)
-                ],
+                [f"{index+1}. {value.title}" for index, value in enumerate(videoList)],
             )
         ],
         callback=lambda x: callback(videoList[x][0]),
@@ -309,7 +271,7 @@ def mergeVideo(
 
     ffmpegProcess = subprocess.Popen(
         [
-            "ffmpeg",
+            util.ffmpeg.ffmpegCallable,
             "-hide_banner",
             "-i",
             str(videoPath),
@@ -445,12 +407,13 @@ def downloadButtonOnClick():
 downloadButton = ttk.Button(main, text="下载", command=downloadButtonOnClick)
 downloadButton.grid(row=3, column=0, pady=10, columnspan=3, sticky="we")
 
-rootLogger.info("Done")
 
-if util.testFfmpeg(util.config.ffmpeg):
-    rootLogger.info("ffmpeg test passed")
+if util.ffmpeg.searchFFmpeg():
+    rootLogger.info(f"ffmpeg test passed with result {util.ffmpeg.ffmpegCallable}")
 else:
     rootLogger.warning("ffmpeg test failed")
-    messagebox.showerror("错误", "ffmpeg测试失败，请检查ffmpeg依赖状态")
+    if util.dialog.askokcancel("FFmpeg缺失", "FFmpeg缺失，是否下载?"):
+        threading.Thread(target=util.ffmpeg.downloadFfmpeg, daemon=True).start()
+rootLogger.info("Done")
 
 rootWindow.mainloop()

@@ -7,11 +7,65 @@ import os
 import tempfile
 import time
 from lib.argparser import config
-import subprocess
+import io
+from tkinter import ttk
+import requests
+
 import tkinter as tk
+from . import ffmpeg
+
 rootWindow = tk.Tk()
 
 from . import dialog
+
+
+def download(
+    url: str,
+    header: Dict[str, str],
+    saveIO: io.FileIO | None,
+    succeed: Callable[[], None],
+    fail: Callable[[], None],
+    progress: ttk.Progressbar,
+    onHeader: Callable[
+        [requests.Response, Callable[[io.FileIO], None]], None
+    ] = lambda x: None,
+):
+    logger = getLogger("_download")
+
+    logger.info(f"start downloading {url}")
+
+    try:
+        response = requests.get(
+            url, headers=header, stream=True, timeout=config.timeout
+        )
+        logger.info(f"response status code: {response.status_code}")
+
+        assert response.status_code // 100 == 2
+
+        def changeSaveIo(i: io.FileIO):
+            nonlocal saveIO
+            saveIO = i
+
+        onHeader(response, changeSaveIo)
+        
+        if not saveIO:
+            raise Exception("saveIO is None")
+
+        progress["maximum"] = int(response.headers["Content-Length"])
+
+        for i in response.iter_content(1024):
+            saveIO.write(i)
+            progress["value"] += len(i)
+            progress.update()
+
+    except Exception as e:
+        logger.warning(f"download failed: {errorLogInfo(e)}: {e}")
+
+        fail()
+    else:
+        saveIO.close()
+        logger.info("download succeed")
+        succeed()
 
 
 def showModal(master: tk.Tk | tk.Toplevel = rootWindow) -> tk.Toplevel:
@@ -122,14 +176,6 @@ def errorLogInfo(e: BaseException):
     return f"{e.__class__.__name__}:{str(e)}"
 
 
-def testFfmpeg(path: str):
-    try:
-        subprocess.call([path, "-version"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-    except Exception:
-        return False
-    return True
-
-
 tempRoot = pathlib.Path(tempfile.gettempdir()).joinpath(
     f"k-bilibili-download-{time.time()}"
 )
@@ -168,5 +214,5 @@ __all__ = [
     "getHeader",
     "getPageUrl",
     "dataPath",
-    "testFfmpeg",
+    "ffmpeg",
 ]
