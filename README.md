@@ -42,7 +42,7 @@ ffmpeg 下载链接：[Download FFMPEG](https://ffmpeg.org/download.html)
 
 ## 操作
 
-1. 填入目标 BV/AV/SS/MD号，或者直接填 b 站链接
+1. 填入目标 BV/AV/SS/EP/MD号，或者直接填 b 站链接
 2. 把你的 b 站 cookie 填进去
 3. 点击下载，会尝试获取该视频的资料
 4. 选择音频流/视频流开始下载
