@@ -26,7 +26,7 @@ pip install -r requirements.txt
 
 #### ffmpeg
 
-保证此程序运行时能够通过`ffmpeg`指令直接调启 ffmpeg
+程序默认使用`ffmpeg`指令掉起ffmpeg，可以在启动参数中使用`-d`参数修改。后续考虑支持自动下载ffmpeg
 
 可以尝试使用此命令
 
