@@ -2,7 +2,7 @@ from typing import *
 from lib.util import session
 import re
 import lib.util as util
-import lib.types as types
+import lib.util.types as types
 from . import playUrl
 
 

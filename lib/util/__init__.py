@@ -6,11 +6,11 @@ import sys
 import os
 import tempfile
 import time
-from lib.argparser import config
+from lib.util.argparser import config
 import subprocess
 import tkinter as tk
 import traceback
-from lib.request import session
+from lib.util.request import session
 
 rootWindow = tk.Tk()
 

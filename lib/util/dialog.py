@@ -2,7 +2,7 @@ from typing import *
 from tkinter.messagebox import *
 import tkinter as tk
 from tkinter import ttk
-from . import util
+import lib.util as util
 
 
 def askToSelect(

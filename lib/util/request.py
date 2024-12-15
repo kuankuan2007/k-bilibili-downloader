@@ -1,6 +1,6 @@
 import requests as _requests
 import requests.adapters as _adapters
-from lib.util import config
+from . import config
 
 session = _requests.Session()
 

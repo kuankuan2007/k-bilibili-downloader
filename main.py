@@ -11,14 +11,14 @@ import time
 import subprocess
 from PIL import Image, ImageTk
 
-import lib.argparser as argParser
+import lib.util.argparser as argParser
 
 if __name__ == "__main__":
     argParser.parse()
 
 import lib.getPlayInfo as getPlayInfo
 import lib.util as util
-import lib.types as types
+import lib.util.types as types
 
 
 rootLogger = util.getLogger("root")

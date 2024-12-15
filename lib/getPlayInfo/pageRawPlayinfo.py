@@ -2,7 +2,7 @@ from typing import *
 import re
 import json
 import lib.util as util
-import lib.types as types
+import lib.util.types as types
 from . import getPage
 
 
