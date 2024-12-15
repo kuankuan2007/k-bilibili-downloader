@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox, filedialog, ttk
-import requests
+from lib.util import session
 
 import threading
 from typing import *
@@ -41,8 +41,8 @@ def _download(
     logger.info(f"start downloading {url}")
 
     try:
-        response = requests.get(
-            url, headers=header, stream=True, timeout=util.config.timeout
+        response = session.get(
+            url, headers=header, stream=True, 
         )
         logger.info(f"response status code: {response.status_code}")
 
@@ -257,12 +257,18 @@ def getPlayUrl(videoInfo: types.VideoPart, cookie: str, savePath: str, video: st
     playinfo: types.PlayInfo = videoInfo.playinfo()
 
     logger.info("start ask download type")
-    askDownloadType(
-        playinfo["dash"]["video"],
-        playinfo["dash"]["audio"],
-        dict(zip(playinfo["accept_quality"], playinfo["accept_description"])),
-        util.toCallback(startDownload, cookie=cookie, savePath=savePath, video=video),
-    )
+    try:
+        askDownloadType(
+            playinfo["dash"]["video"],
+            playinfo["dash"]["audio"],
+            dict(zip(playinfo["accept_quality"], playinfo["accept_description"])),
+            util.toCallback(
+                startDownload, cookie=cookie, savePath=savePath, video=video
+            ),
+        )
+    except Exception as e:
+        logger.warning(f"Can't ask download type with error {util.errorLogInfo(e)}")
+        messagebox.showerror("错误", f"无法获取视频信息\n{util.errorLogInfo(e,True)}")
 
 
 def askDownloadType(
@@ -430,14 +436,20 @@ ttk.Button(
 
 def downloadButtonOnClick():
     downloadButton.configure(state="disabled")
+    def _target():
+        try:
+            requestDownload()
+        finally:
+            downloadButton.configure(state="normal")
     requestDownloadThread = threading.Thread(
-        target=lambda: (requestDownload(), downloadButton.configure(state="normal")),
+        target=_target,
         daemon=True,
     )
     requestDownloadThread.start()
     rootLogger.info(
-        f"download button onclick, starting download thread %{requestDownloadThread.ident}"
+        f"download button onclick, starting download thread {requestDownloadThread.ident}"
     )
+    
 
 
 downloadButton = ttk.Button(main, text="下载", command=downloadButtonOnClick)

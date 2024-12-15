@@ -9,6 +9,8 @@ import time
 from lib.argparser import config
 import subprocess
 import tkinter as tk
+import traceback
+from lib.request import session
 
 rootWindow = tk.Tk()
 
@@ -77,14 +79,19 @@ def getHeader(cookie: str | None = None, referer: str | None = None, **kwargs) -
     return {
         "Referer": referer,
         "Cookie": cookie,
-        "Accept": "*/*" "Accept-language:zh-CN,zh;q=0.9,en;q=0.8",
-        "sec-ch-ua": '"Microsoft Edge";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-site",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
+        "Accept": "*/*",
+        "Accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Sec-Ch-Ua": '"Microsoft Edge";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-site",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
+        "Pragma": "no-cache",
+        "Cache-Control": "no-cache",
+        "Upgrade-Insecure-Requests": "1",
         **kwargs,
     }
 
@@ -95,7 +102,7 @@ def getPageUrl(vid: str):
         vid,
     ):
         return vid
-    elif re.match(
+    if re.match(
         re.compile("av[1-9][0-9]*", re.I),
         vid,
     ) or re.match("(?:B|b)(?:v|V)[0-9a-zA-Z]{10}", vid):
@@ -110,6 +117,7 @@ def getPageUrl(vid: str):
         vid,
     ):
         return f"https://www.bilibili.com/bangumi/media/{vid}"
+    rootLogger.warning(f"Unknown video id: {vid}")
     return None
 
 
@@ -125,8 +133,12 @@ def dataPath(filename: str | pathlib.Path):
     return dataBasePath.joinpath(filename)
 
 
-def errorLogInfo(e: BaseException):
-    return f"{e.__class__.__name__}:{str(e)}"
+def errorLogInfo(e: BaseException, showTraceback: bool = False):
+    return f"{e.__class__.__name__}:{str(e)}" + (
+        f"\n{'\n'.join(traceback.format_exception(None, e, e.__traceback__))}"
+        if showTraceback
+        else ""
+    )
 
 
 def testFfmpeg(path: str):
@@ -178,4 +190,5 @@ __all__ = [
     "getPageUrl",
     "dataPath",
     "testFfmpeg",
+    "session",
 ]

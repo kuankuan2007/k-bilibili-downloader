@@ -63,7 +63,7 @@ def askToSelect(
 def showProgress(
     title: str,
     progressName: List[str],
-    _cancel: Callable[[], None],
+    cancel: Callable[[], None],
     master: tk.Tk | tk.Toplevel = util.rootWindow,
     length: int = 300,
 ) -> Tuple[
@@ -96,20 +96,15 @@ def showProgress(
         Closes the window.
         """
         close()
-    def _cancel():
-        """
-        Callback function for the "Cancel" button.
-        Calls the `cancel` function and closes the window.
-        """
-        _cancel()
-        close()
     def close():
+        cancel()
         logger.info("window closed")
         window.destroy()
 
     okButton = ttk.Button(buttonBox, text="确定", command=ok, state=tk.DISABLED)
     okButton.grid(row=0, column=1, padx=5)
-    ttk.Button(buttonBox, text="取消", command=_cancel).grid(row=0, column=0, padx=5)
+    ttk.Button(buttonBox, text="取消", command=close).grid(row=0, column=0, padx=5)
+    window.protocol("WM_DELETE_WINDOW", close)
 
     return (
         close,

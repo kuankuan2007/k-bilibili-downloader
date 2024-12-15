@@ -1,12 +1,11 @@
 from typing import *
-import requests
+from lib.util import session
 import lib.util as util
-import lib.types as types
 
 cache = {}
 
 
-def get(video: str, cookie: str) -> list[types.VideoPart]:
+def get(video: str, cookie: str) -> str:
     logger = util.getLogger("download page")
     url = util.getPageUrl(video)
     headers = util.getHeader(cookie, url)
@@ -15,7 +14,7 @@ def get(video: str, cookie: str) -> list[types.VideoPart]:
         return cache[url]
     try:
         logger.info(f"request page url: {url}, headers: {headers}")
-        response = requests.get(url, headers=headers, timeout=util.config.timeout)
+        response = session.get(url, headers=headers)
         logger.info(f"response status code: {response.status_code}")
         assert response.status_code // 100 == 2
         html = response.text

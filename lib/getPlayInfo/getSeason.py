@@ -4,8 +4,8 @@ import json
 import lib.util as util
 import lib.types as types
 from . import getPage
-from . import api
-import requests
+from . import playUrl
+from lib.util import session
 
 
 def get(video: str, cookie: str) -> list[types.VideoPart]:
@@ -39,12 +39,11 @@ def get(video: str, cookie: str) -> list[types.VideoPart]:
         if not seasonId:
             logger.info("Can't find season_id")
             raise Exception("Can't find season_id")
-        res = requests.get(
+        res = session.get(
             "https://api.bilibili.com/pgc/web/season/section",
             params={
                 "season_id": seasonId,
             },
-            timeout=util.config.timeout,
             headers=util.getHeader(
                 cookie,
                 util.getPageUrl(video),
@@ -52,19 +51,32 @@ def get(video: str, cookie: str) -> list[types.VideoPart]:
             ),
         )
         res.raise_for_status()
-        return [
+        data = res.json()["result"]
+        res = [
             types.VideoPart(
-                title=i["long_title"],
+                title=f"{data['main_section']['title']} - " + (i["long_title"] or i["title"]),
                 playinfo=util.toCallback(
-                    api.getPlayInfo,
-                    {
-                        "aid": i["aid"],
-                        "cid": i["cid"],
-                    },
-                    cookie,
+                    playUrl.get,
+                    avid=i["aid"],
+                    cid=i["cid"],
+                    cookie=cookie,
                 ),
             )
-            for i in res.json()["result"]["main_section"]["episodes"]
+            for i in util.optionalChain(data, "main_section", "episodes", default=[])
         ]
+        for i in util.optionalChain(data, "section", default=[]):
+            for j in util.optionalChain(i, "episodes", default=[]):
+                res.append(
+                    types.VideoPart(
+                        title=f"{i['title']} - " + (j["long_title"] or j["title"]),
+                        playinfo=util.toCallback(
+                            playUrl.get,
+                            avid=j["aid"],
+                            cid=j["cid"],
+                            cookie=cookie,
+                        ),
+                    )
+                )
+        return res
     except Exception:
         return []

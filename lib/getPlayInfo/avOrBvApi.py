@@ -1,22 +1,9 @@
 from typing import *
-import requests
+from lib.util import session
 import re
 import lib.util as util
 import lib.types as types
-
-
-def getPlayInfo(video: dict, cookie: str) -> dict:
-    return requests.get(
-        "https://api.bilibili.com/x/player/wbi/playurl",
-        params={
-            "avid": video.get("aid"),
-            "bvid": video.get("bvid"),
-            "cid": video["cid"],
-            "fnval": "4048",
-        },
-        headers=util.getHeader(cookie),
-        timeout=util.config.timeout,
-    ).json()["data"]
+from . import playUrl
 
 
 def get(video: str, cookie: str):
@@ -27,13 +14,12 @@ def get(video: str, cookie: str):
             "bvid": (re.findall(r"BV[0-9a-zA-Z]{10}", video, re.I) or [None])[0],
         }
         if not info["aid"] and not info["bvid"]:
-            logger.warning("No av or bv found")
+            logger.info("No av or bv found")
             return []
-        pagelist = requests.get(
+        pagelist = session.get(
             "https://api.bilibili.com/x/player/pagelist",
             params=info,
             headers=util.getHeader(cookie),
-            timeout=util.config.timeout,
         ).json()["data"]
         assert pagelist and type(pagelist) == list, "Can't get page list"
         logger.info(f"Got {len(pagelist)} pages")
@@ -41,7 +27,7 @@ def get(video: str, cookie: str):
             types.VideoPart(
                 title=i["part"],
                 playinfo=util.toCallback(
-                    getPlayInfo, {**info, "cid": i["cid"]}, cookie
+                    playUrl.get, cookie=cookie, avid=info["aid"], bvid=info["bvid"], cid=i["cid"]
                 ),
             )
             for i in pagelist

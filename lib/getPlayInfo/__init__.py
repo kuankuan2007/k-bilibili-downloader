@@ -1,6 +1,3 @@
-from . import api
-# from . import getPage
-from . import pageRawPlayinfo
-from . import getSeason
+from . import avOrBvApi, epApi, getSeason, pageRawPlayinfo
 
-li = [api, getSeason, pageRawPlayinfo]
+li = [avOrBvApi, epApi, getSeason, pageRawPlayinfo]
