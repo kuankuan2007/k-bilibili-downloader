@@ -1,4 +1,4 @@
-from typing import *
+import typing as t
 import logging
 import re
 import pathlib
@@ -14,16 +14,10 @@ from lib.util.request import session
 
 rootWindow = tk.Tk()
 
-from . import dialog
+from lib.ui import dialog
 
 
-def showModal(master: tk.Tk | tk.Toplevel = rootWindow) -> tk.Toplevel:
-    window = tk.Toplevel(master)
-    window.transient(master)
-    window.grab_set()
-    window.geometry("".join(["+" + i for i in master.geometry().split("+")[-2:]]))
-    window.resizable(0, 0)
-    return window
+
 
 
 logMap = {
@@ -34,7 +28,7 @@ logMap = {
 }
 
 
-def toCallback(func: Callable, *args, **kwargs) -> Callable:
+def toCallback(func: t.Callable, *args, **kwargs) -> t.Callable:
     """
     Converts a function to a callback format.
 
@@ -55,7 +49,7 @@ def getLogger(name: str):
     return logging.getLogger(name)
 
 
-def optionalChain(d: dict | list, *keys: Any, default: Any = None) -> Any:
+def optionalChain(d: dict | list, *keys: t.Any, default: t.Any = None) -> t.Any:
     """
     Chains together a series of keys in a dictionary to retrieve a value.
 
@@ -118,11 +112,11 @@ def getPageUrl(vid: str):
     ):
         return f"https://www.bilibili.com/bangumi/media/{vid}"
     rootLogger.warning(f"Unknown video id: {vid}")
-    return None
+    raise ValueError("unknown video id")
 
 
 if getattr(sys, "frozen", None):
-    dataBasePath = pathlib.Path(sys._MEIPASS)
+    dataBasePath = pathlib.Path(sys._MEIPASS)  # type: ignore
 else:
     dataBasePath = pathlib.Path(os.getcwd()).joinpath("data")
 
@@ -134,7 +128,10 @@ def dataPath(filename: str | pathlib.Path):
 
 
 def errorLogInfo(e: BaseException, showTraceback: bool = False):
-    return f"{e.__class__.__name__}:{str(e)}" + (
+
+    return (
+        e.tip if isinstance(e, TipableException) else f"{e.__class__.__name__}:{str(e)}"
+    ) + (
         f"\n{'\n'.join(traceback.format_exception(None, e, e.__traceback__))}"
         if showTraceback
         else ""
@@ -149,6 +146,14 @@ def testFfmpeg(path: str):
     except Exception:
         return False
     return True
+
+
+class TipableException(Exception):
+    tip: str
+
+    def __init__(self, message: str, tipForUser: str):
+        super().__init__(message)
+        self.tip = tipForUser
 
 
 tempRoot = pathlib.Path(tempfile.gettempdir()).joinpath(

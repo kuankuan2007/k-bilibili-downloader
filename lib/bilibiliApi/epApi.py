@@ -1,4 +1,3 @@
-from typing import *
 from lib.util import session
 import re
 import lib.util as util
@@ -14,7 +13,7 @@ def get(video: str, cookie: str):
 
         if epID is None:
             logger.info("No ep id found")
-            return []
+            raise ValueError("No ep id found")
 
         epData = session.get(
             "https://api.bilibili.com/pgc/view/web/ep/list",
@@ -22,24 +21,35 @@ def get(video: str, cookie: str):
             headers=util.getHeader(cookie),
         ).json()["result"]
 
-        res = [
-            types.VideoPart(
-                title=i["title"],
-                playinfo=util.toCallback(
-                    playUrl.get,
-                    cookie=cookie,
-                    avid=i["aid"],
-                    bvid=i["bvid"],
-                    cid=i["cid"],
-                ),
-            )
-            for i in util.optionalChain(epData, "episodes", default=[])
-        ]
-        for i in util.optionalChain(epData, "section", default=[]):
-            for j in util.optionalChain(epData, "episodes", default=[]):
-                res.append(
+        res = types.VideoPartResults(title="root", li=[])
+        res.li.append(
+            types.VideoPartResults(
+                title=util.optionalChain(epData, "title", default="Season"),
+                li=[
                     types.VideoPart(
-                        title=i["title"] + " - " + j["title"],
+                        title=i["title"],
+                        playinfo=util.toCallback(
+                            playUrl.get,
+                            cookie=cookie,
+                            avid=i["aid"],
+                            bvid=i["bvid"],
+                            cid=i["cid"],
+                        ),
+                    )
+                    for i in util.optionalChain(epData, "episodes", default=[])
+                ],
+            )
+        )
+        sectionPart = types.VideoPartResults(title="section", li=[])
+        res.li.append(sectionPart)
+
+        for i in util.optionalChain(epData, "section", default=[]):
+            now = types.VideoPartResults(title=i["title"], li=[])
+            sectionPart.li.append(now)
+            for j in util.optionalChain(epData, "episodes", default=[]):
+                now.li.append(
+                    types.VideoPart(
+                        title=j["title"],
                         playinfo=util.toCallback(
                             playUrl.get,
                             cookie=cookie,
@@ -54,4 +64,4 @@ def get(video: str, cookie: str):
 
     except Exception as e:
         logger.warning(f"Can't get page list with error {util.errorLogInfo(e)}")
-        return []
+        return None

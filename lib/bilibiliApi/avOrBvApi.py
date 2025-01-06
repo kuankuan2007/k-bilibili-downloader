@@ -1,4 +1,3 @@
-from typing import *
 from lib.util import session
 import re
 import lib.util as util
@@ -15,7 +14,7 @@ def get(video: str, cookie: str):
         }
         if not info["aid"] and not info["bvid"]:
             logger.info("No av or bv found")
-            return []
+            raise ValueError("No av or bv found")
         pagelist = session.get(
             "https://api.bilibili.com/x/player/pagelist",
             params=info,
@@ -23,15 +22,22 @@ def get(video: str, cookie: str):
         ).json()["data"]
         assert pagelist and type(pagelist) == list, "Can't get page list"
         logger.info(f"Got {len(pagelist)} pages")
-        return [
-            types.VideoPart(
-                title=i["part"],
-                playinfo=util.toCallback(
-                    playUrl.get, cookie=cookie, avid=info["aid"], bvid=info["bvid"], cid=i["cid"]
-                ),
-            )
-            for i in pagelist
-        ]
+        return types.VideoPartResults(
+            title="main",
+            li=[
+                types.VideoPart(
+                    title=i["part"],
+                    playinfo=util.toCallback(
+                        playUrl.get,
+                        cookie=cookie,
+                        avid=info["aid"],
+                        bvid=info["bvid"],
+                        cid=i["cid"],
+                    ),
+                )
+                for i in pagelist
+            ],
+        )
     except Exception as e:
         logger.warning(f"Can't get page list with error {util.errorLogInfo(e)}")
-        return []
+        return None

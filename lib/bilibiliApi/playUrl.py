@@ -1,6 +1,5 @@
-from typing import *
 from lib.util import session
-import lib.util as util
+from lib import util
 
 
 def get(

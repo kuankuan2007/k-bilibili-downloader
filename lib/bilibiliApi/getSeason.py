@@ -1,18 +1,18 @@
-from typing import *
 import re
 import json
-import lib.util as util
+from lib import util
 import lib.util.types as types
 from . import getPage
 from . import playUrl
 from lib.util import session
+import typing as t
 
 
-def get(video: str, cookie: str) -> list[types.VideoPart]:
+def get(video: str, cookie: str):
     logger = util.getLogger("AnalyzingPageSeasonInfo")
     html = getPage.get(video, cookie)
 
-    def findSeasonId(d: dict | list) -> int | None:
+    def findSeasonId(d: t.Any) -> int | None:
         for i in d if isinstance(d, dict) else range(len(d)):
             if i == "season_id" and type(d[i]) == int:
                 return d[i]
@@ -52,23 +52,38 @@ def get(video: str, cookie: str) -> list[types.VideoPart]:
         )
         res.raise_for_status()
         data = res.json()["result"]
-        res = [
-            types.VideoPart(
-                title=f"{data['main_section']['title']} - " + (i["long_title"] or i["title"]),
-                playinfo=util.toCallback(
-                    playUrl.get,
-                    avid=i["aid"],
-                    cid=i["cid"],
-                    cookie=cookie,
-                ),
-            )
-            for i in util.optionalChain(data, "main_section", "episodes", default=[])
-        ]
+        ressult = types.VideoPartResults(title="root", li=[])
+        mainPart = types.VideoPartResults(
+            title=util.optionalChain(
+                data, "main_section", "title", default="Main Section"
+            ),
+            li=[
+                types.VideoPart(
+                    title=f"{data['main_section']['title']} - "
+                    + (i["long_title"] or i["title"]),
+                    playinfo=util.toCallback(
+                        playUrl.get,
+                        avid=i["aid"],
+                        cid=i["cid"],
+                        cookie=cookie,
+                    ),
+                )
+                for i in util.optionalChain(
+                    data, "main_section", "episodes", default=[]
+                )
+            ],
+        )
+        ressult.li.append(mainPart)
+        sectionPart = types.VideoPartResults(title="Other", li=[])
         for i in util.optionalChain(data, "section", default=[]):
+            now = types.VideoPartResults(
+                title=util.optionalChain(i, "title", default="Section"), li=[]
+            )
+            sectionPart.li.append(now)
             for j in util.optionalChain(i, "episodes", default=[]):
-                res.append(
+                now.li.append(
                     types.VideoPart(
-                        title=f"{i['title']} - " + (j["long_title"] or j["title"]),
+                        title=(j["long_title"] or j["title"]),
                         playinfo=util.toCallback(
                             playUrl.get,
                             avid=j["aid"],
@@ -77,6 +92,6 @@ def get(video: str, cookie: str) -> list[types.VideoPart]:
                         ),
                     )
                 )
-        return res
+        return ressult
     except Exception:
-        return []
+        return None

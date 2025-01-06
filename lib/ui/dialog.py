@@ -1,17 +1,26 @@
-from typing import *
-from tkinter.messagebox import *
+import typing as t
+from tkinter.messagebox import * # type: ignore
 import tkinter as tk
 from tkinter import ttk
 import lib.util as util
 
 
+def showModal(master: tk.Tk | tk.Toplevel = util.rootWindow) -> tk.Toplevel:
+    window = tk.Toplevel(master)
+    window.transient(master)
+    window.grab_set()
+    window.geometry("".join(["+" + i for i in master.geometry().split("+")[-2:]]))
+    window.resizable(False, False)
+    return window
+
+
 def askToSelect(
     title: str,
-    questions: List[Tuple[str, List[str]]],
-    callback: Callable[[List[int]], None],
+    questions: t.List[t.Tuple[str, t.List[str]]],
+    callback: t.Callable[[t.List[int]], None],
     width: int = 40,
     master: tk.Tk | tk.Toplevel = util.rootWindow,
-) -> List[int]:
+) -> None:
     """
     Ask the user to select answers from a list of questions.
 
@@ -25,10 +34,10 @@ def askToSelect(
 
     logger = util.getLogger("askToSelect")
 
-    window = util.showModal(master)
+    window = showModal(master)
     window.title(title)
 
-    selecters: ttk.Combobox = []
+    selecters: t.List[ttk.Combobox] = []
 
     for index, (question, answers) in enumerate(questions):
         tk.Label(window, text=question).grid(
@@ -62,20 +71,20 @@ def askToSelect(
 
 def showProgress(
     title: str,
-    progressName: List[str],
-    cancel: Callable[[], None],
+    progressName: t.List[str],
+    cancel: t.Callable[[], None],
     master: tk.Tk | tk.Toplevel = util.rootWindow,
     length: int = 300,
-) -> Tuple[
-    Callable[[], None],
-    Tuple[Callable[[], None], Callable[[], None]],
-    Tuple[ttk.Progressbar, ...],
+) -> t.Tuple[
+    t.Callable[[], t.Any],
+    t.Tuple[t.Callable[[], t.Any], t.Callable[[], t.Any]],
+    t.Tuple[ttk.Progressbar, ...],
 ]:
     logger = util.getLogger("showProgress")
-    window = util.showModal(master)
+    window = showModal(master)
     window.title(title)
 
-    result: List[ttk.Progressbar] = []
+    result: t.List[ttk.Progressbar] = []
 
     for index, name in enumerate(progressName):
         tk.Label(window, text=name).grid(

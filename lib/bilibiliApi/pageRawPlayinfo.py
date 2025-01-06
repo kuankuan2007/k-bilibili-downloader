@@ -1,4 +1,3 @@
-from typing import *
 import re
 import json
 import lib.util as util
@@ -6,7 +5,7 @@ import lib.util.types as types
 from . import getPage
 
 
-def get(video: str, cookie: str) -> list[types.VideoPart]:
+def get(video: str, cookie: str):
     logger = util.getLogger("AnalyzingPagePlayinfo")
     html = getPage.get(video, cookie)
     try:
@@ -40,15 +39,19 @@ def get(video: str, cookie: str) -> list[types.VideoPart]:
         if not flag:
             logger.warning("Can't find playinfo in page")
             raise Exception("Can't find playinfo in page")
-        return [
-            types.VideoPart(
-                title=util.optionalChain(
-                    re.findall(r"<title.*>(.*)</title>", html), 0, default="Unknown"
-                ),
-                playinfo=lambda: palyInfo,
-            )
-        ]
+        return types.VideoPartResults(
+            title="root",
+            li=[
+                types.VideoPart(
+                    title=util.optionalChain(
+                        re.findall(r"<title.*>(.*)</title>", html),
+                        0,
+                        default="Unknown",
+                    ),
+                    playinfo=lambda: palyInfo,
+                )
+            ],
+        )
     except Exception as e:
         logger.warning(f"Can't parse page with error {util.errorLogInfo(e)}, return")
-        util.dialog.showerror("错误", "解析错误，无法获取视频信息")
-        return
+        return None
