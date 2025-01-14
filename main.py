@@ -1,16 +1,19 @@
 import tkinter as tk
 from tkinter import messagebox, filedialog, ttk
-from lib.util import session
 
 import threading
 from typing import *
 import io
+import autoDownload.console
 import pyperclip
 import pathlib
 import time
 import subprocess
 from PIL import Image, ImageTk
+import autoDownload
 
+prog = autoDownload.console.DownloadProgress()
+prog.start()
 import lib.util.argparser as argParser
 
 if __name__ == "__main__":
@@ -23,7 +26,7 @@ import lib.util.types as types
 
 rootLogger = util.getLogger("root")
 
-rootLogger.info(f"base dir: {util.dataBasePath}")
+rootLogger.info("base dir: %s", util.dataBasePath)
 
 rootWindow = util.rootWindow
 
@@ -31,36 +34,35 @@ rootWindow = util.rootWindow
 def _download(
     url: str,
     header: Dict[str, str],
-    saveIO: io.FileIO,
+    saveFile: pathlib.Path,
     succeed: Callable[[], None],
     fail: Callable[[], None],
     progress: ttk.Progressbar,
 ):
     logger = util.getLogger("_download")
 
-    logger.info(f"start downloading {url}")
+    logger.info("start downloading %s", url)
 
     try:
-        response = session.get(
-            url, headers=header, stream=True, 
+        res = autoDownload.rawRequest(
+            autoDownload.TaskConfig(
+                url=url,
+                headers=header,
+                file=saveFile,
+            )
         )
-        logger.info(f"response status code: {response.status_code}")
-
-        assert response.status_code // 100 == 2
-
-        progress["maximum"] = int(response.headers["Content-Length"])
-
-        for i in response.iter_content(1024):
-            saveIO.write(i)
-            progress["value"] += len(i)
-            progress.update()
-
+        prog.traceTask(res.task)
+        res.task.progress.addListener(
+            lambda p: (progress.configure(maximum=p.total, value=p.now), prog.refresh())
+        )
+        res.event.wait()
+        if not res.ok:
+            raise res.err or RuntimeError("download failed case by unknown reason")
     except Exception as e:
-        logger.warning(f"download failed: {util.errorLogInfo(e)}: {e}")
+        logger.warning("download failed: %s: %s", util.errorLogInfo(e), e)
 
         fail()
     else:
-        saveIO.close()
         logger.info("download succeed")
         succeed()
 
@@ -77,7 +79,7 @@ def startDownload(
     videoPath = util.tempRoot.joinpath(f"video-{time.time()}.tmp")
     audioPath = util.tempRoot.joinpath(f"audio-{time.time()}.tmp")
 
-    logger.info(f"videoPath: {videoPath}, audioPath: {audioPath}")
+    logger.info("videoPath: %s, audioPath: %s", videoPath, audioPath)
 
     def cancel():
         nonlocal cancelFlag
@@ -112,14 +114,14 @@ def startDownload(
             _start("merge")
 
     def fail(t=Literal["video", "audio"]):
-        logger.info(f"{t} download failed")
+        logger.info("%s download failed", t)
         if cancelFlag:
             return
         if messagebox.askokcancel("错误", f"{t}下载失败，是否重试"):
-            logger.info(f"{t} download retry")
+            logger.info("%s download retry", t)
             _start(t)
         else:
-            logger.info(f"download cancel, case by download {t} fail")
+            logger.info("download cancel, case by download %s fail", t)
             cancel()
 
     def mergeSuccess():
@@ -142,14 +144,14 @@ def startDownload(
 
     def _start(t=Literal["video", "audio", "merge"]):
         nonlocal videoThread, audioThread, mergeThread
-        logger.info(f"start thread: {t}")
+        logger.info("start thread: %s", t)
         if t == "video":
             videoThread = threading.Thread(
                 target=_download,
                 args=(
                     videoInfo["baseUrl"],
                     header,
-                    io.FileIO(videoPath, "wb"),
+                    videoPath,
                     downloadSuccess,
                     lambda: fail(t),
                     videoProgress,
@@ -157,14 +159,14 @@ def startDownload(
                 daemon=True,
             )
             videoThread.start()
-            logger.info(f"video thread started in thread {videoThread.ident}")
+            logger.info("video thread started in thread %s", videoThread.ident)
         elif t == "audio":
             audioThread = threading.Thread(
                 target=_download,
                 args=(
                     audioInfo["baseUrl"],
                     header,
-                    io.FileIO(audioPath, "wb"),
+                    audioPath,
                     downloadSuccess,
                     lambda: fail(t),
                     audioProgress,
@@ -172,7 +174,7 @@ def startDownload(
                 daemon=True,
             )
             audioThread.start()
-            logger.info(f"audio thread started in thread {videoThread.ident}")
+            logger.info("audio thread started in thread %s", videoThread.ident)
         elif t == "merge":
             mergeThread = threading.Thread(
                 target=mergeVideo,
@@ -180,7 +182,7 @@ def startDownload(
                 daemon=True,
             )
             mergeThread.start()
-            logger.info(f"merge thread started in thread {mergeThread.ident}")
+            logger.info("merge thread started in thread %s", mergeThread.ident)
 
     logger.info("window initialized")
 
@@ -213,7 +215,7 @@ def requestDownload():
     cookie = cookieVar.get().replace("\r", "").replace("\n", "")
     savePath = savePathVar.get()
 
-    logger.info(f"video: {video}, cookie: {cookie}, savePath: {savePath}")
+    logger.info("video: %s, cookie: %s, savePath: %s", video, cookie, savePath)
 
     if not (video and cookie and savePath):
         logger.info("Incomplete information, return")
@@ -267,7 +269,7 @@ def getPlayUrl(videoInfo: types.VideoPart, cookie: str, savePath: str, video: st
             ),
         )
     except Exception as e:
-        logger.warning(f"Can't ask download type with error {util.errorLogInfo(e)}")
+        logger.warning("Can't ask download type with error %s", util.errorLogInfo(e))
         messagebox.showerror("错误", f"无法获取视频信息\n{util.errorLogInfo(e,True)}")
 
 
@@ -309,7 +311,7 @@ def mergeVideo(
 ):
     logger = util.getLogger("mergeVideo")
 
-    logger.info(f"merge video: {videoPath}, audio: {audioPath}, save: {savePath}")
+    logger.info("merge video: %s, audio: %s, save: %s", videoPath, audioPath, savePath)
 
     ffmpegProcess = subprocess.Popen(
         [
@@ -333,7 +335,7 @@ def mergeVideo(
     )
     logger.info("ffmpeg process started")
     ffmpegProcess.wait()
-    logger.info(f"ffmpeg process ended, with code: {ffmpegProcess.returncode}")
+    logger.info("ffmpeg process ended, with code: %s", ffmpegProcess.returncode)
     if ffmpegProcess.returncode != 0:
         logger.warning("ffmpeg process failed")
         mergeFail()
@@ -436,20 +438,22 @@ ttk.Button(
 
 def downloadButtonOnClick():
     downloadButton.configure(state="disabled")
+
     def _target():
         try:
             requestDownload()
         finally:
             downloadButton.configure(state="normal")
+
     requestDownloadThread = threading.Thread(
         target=_target,
         daemon=True,
     )
     requestDownloadThread.start()
     rootLogger.info(
-        f"download button onclick, starting download thread {requestDownloadThread.ident}"
+        "download button onclick, starting download thread %s",
+        requestDownloadThread.ident,
     )
-    
 
 
 downloadButton = ttk.Button(main, text="下载", command=downloadButtonOnClick)

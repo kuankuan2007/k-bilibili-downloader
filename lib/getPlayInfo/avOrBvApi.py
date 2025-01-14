@@ -22,7 +22,7 @@ def get(video: str, cookie: str):
             headers=util.getHeader(cookie),
         ).json()["data"]
         assert pagelist and type(pagelist) == list, "Can't get page list"
-        logger.info(f"Got {len(pagelist)} pages")
+        logger.info("Got %d pages", len(pagelist))
         return [
             types.VideoPart(
                 title=i["part"],
@@ -33,5 +33,5 @@ def get(video: str, cookie: str):
             for i in pagelist
         ]
     except Exception as e:
-        logger.warning(f"Can't get page list with error {util.errorLogInfo(e)}")
+        logger.warning("Can't get page list with error %s", util.errorLogInfo(e))
         return []

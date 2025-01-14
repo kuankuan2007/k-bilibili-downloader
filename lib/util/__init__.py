@@ -117,7 +117,7 @@ def getPageUrl(vid: str):
         vid,
     ):
         return f"https://www.bilibili.com/bangumi/media/{vid}"
-    rootLogger.warning(f"Unknown video id: {vid}")
+    rootLogger.warning("Unknown video id: %s", vid)
     return None
 
 
@@ -134,10 +134,14 @@ def dataPath(filename: str | pathlib.Path):
 
 
 def errorLogInfo(e: BaseException, showTraceback: bool = False):
-    return f"{e.__class__.__name__}:{str(e)}" + (
-        f"\n{'\n'.join(traceback.format_exception(None, e, e.__traceback__))}"
-        if showTraceback
-        else ""
+    return "%s:%s%s" % (
+        e.__class__.__name__,
+        str(e),
+        (
+            "\n%s" % "\n".join(traceback.format_exception(None, e, e.__traceback__))
+            if showTraceback
+            else ""
+        ),
     )
 
 
@@ -190,5 +194,4 @@ __all__ = [
     "getPageUrl",
     "dataPath",
     "testFfmpeg",
-    "session",
 ]
