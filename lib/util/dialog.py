@@ -1,5 +1,5 @@
-from typing import *
-from tkinter.messagebox import *
+import typing as _tt
+from tkinter.messagebox import showinfo,showerror # pylint: disable=unused-import
 import tkinter as tk
 from tkinter import ttk
 import lib.util as util
@@ -7,11 +7,11 @@ import lib.util as util
 
 def askToSelect(
     title: str,
-    questions: List[Tuple[str, List[str]]],
-    callback: Callable[[List[int]], None],
+    questions: list[tuple[str, list[str]]],
+    callback: _tt.Callable[[list[int]], None],
     width: int = 40,
     master: tk.Tk | tk.Toplevel = util.rootWindow,
-) -> List[int]:
+) -> None:
     """
     Ask the user to select answers from a list of questions.
 
@@ -28,7 +28,7 @@ def askToSelect(
     window = util.showModal(master)
     window.title(title)
 
-    selecters: ttk.Combobox = []
+    selecters: list[ttk.Combobox] = []
 
     for index, (question, answers) in enumerate(questions):
         tk.Label(window, text=question).grid(
@@ -62,20 +62,20 @@ def askToSelect(
 
 def showProgress(
     title: str,
-    progressName: List[str],
-    cancel: Callable[[], None],
+    progressName: list[str],
+    cancel: _tt.Callable[[], None],
     master: tk.Tk | tk.Toplevel = util.rootWindow,
     length: int = 300,
-) -> Tuple[
-    Callable[[], None],
-    Tuple[Callable[[], None], Callable[[], None]],
-    Tuple[ttk.Progressbar, ...],
+) -> tuple[
+    _tt.Callable[[], None],
+    tuple[_tt.Callable[[], _tt.Any], _tt.Callable[[], _tt.Any]],
+    tuple[ttk.Progressbar, ...],
 ]:
     logger = util.getLogger("showProgress")
     window = util.showModal(master)
     window.title(title)
 
-    result: List[ttk.Progressbar] = []
+    result: list[ttk.Progressbar] = []
 
     for index, name in enumerate(progressName):
         tk.Label(window, text=name).grid(

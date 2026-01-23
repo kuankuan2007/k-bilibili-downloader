@@ -1,22 +1,31 @@
-from typing import *
 import re
 import json
-import lib.util as util
-from lib.util import session, playUrl, types, getLogger, toCallback
+from lib.util import types, getLogger
 from lib.getPlayInfo.ssidApi import getFromSsid
 
 def get(html: str, cookie: str) -> list[types.VideoPart]:
     logger = getLogger("AnalyzingPageInitialState")
+    
 
     def findSeasonId(d: dict | list) -> int | None:
-        for i in d if isinstance(d, dict) else range(len(d)):
-            if i == "season_id" and type(d[i]) == int:
-                return d[i]
-            elif type(d[i]) == dict or type(d[i]) == list:
-                r = findSeasonId(d[i])
-                if r:
-                    return r
-
+        record=set[int]()
+        queue = [d]
+        while queue:
+            d = queue.pop(0)
+            if id(d) in record:
+                continue
+            record.add(id(d))
+            if isinstance(d, dict):
+                for i in d:
+                    if i == "season_id" and type(d[i]) == int:
+                        return d[i]
+                    elif type(d[i]) == dict or type(d[i]) == list:
+                        queue.append(d[i])
+            elif isinstance(d, list):
+                for i in d:
+                    if type(i) == dict or type(i) == list:
+                        queue.append(i)
+        return None
     try:
         logger.info("start parse page")
         seasonId: int | None = None

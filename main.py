@@ -3,7 +3,7 @@ from tkinter import messagebox, filedialog, ttk
 from lib.util import session
 
 import threading
-from typing import *
+import typing as _tt
 import io
 import pyperclip
 import pathlib
@@ -30,10 +30,10 @@ rootWindow = util.rootWindow
 
 def _download(
     url: str,
-    headers: Dict[str, str],
+    headers: dict[str, str],
     savePath: pathlib.Path,
-    succeed: Callable[[], None],
-    fail: Callable[[], None],
+    succeed: _tt.Callable[[], None],
+    fail: _tt.Callable[[], None],
     progress: ttk.Progressbar,
 ):
     logger = util.getLogger("_download")
@@ -44,7 +44,7 @@ def _download(
 
     if downloaded:
         logger.info(f"find {downloaded} bytes downloaded, try to continue downloading")
-        headers={**headers, "Range": f"bytes={downloaded}-"}
+        headers = {**headers, "Range": f"bytes={downloaded}-"}
 
     try:
         response = session.get(
@@ -62,7 +62,9 @@ def _download(
         else:
             saveIo = io.open(savePath, "wb")
             if downloaded:
-                logger.info("Range request not supported, start downloading from scratch")
+                logger.info(
+                    "Range request not supported, start downloading from scratch"
+                )
 
         progress["value"] = 0
         progress["maximum"] = int(response.headers["Content-Length"])
@@ -96,6 +98,12 @@ def startDownload(
 
     logger.info(f"videoPath: {videoPath}, audioPath: {audioPath}")
 
+    def kill(t: threading.Thread):
+        try:
+            t._stop()  # type: ignore
+        except Exception:
+            pass
+
     def cancel():
         nonlocal cancelFlag
         if cancelFlag:
@@ -104,18 +112,16 @@ def startDownload(
         logger.info("download cancel")
         close()
         if videoThread is not None:
-            videoThread._stop()
+            kill(videoThread)
         if audioThread is not None:
-            audioThread._stop()
+            kill(audioThread)
         if mergeThread is not None:
-            mergeThread._stop()
+            kill(mergeThread)
         logger.info("download cancel succeed")
 
     close, (canOK, _cannotOK), (videoProgress, audioProgress, mergeProgress) = (
         util.dialog.showProgress("下载进度", ["视频", "音频", "转码"], cancel)
     )
-
-    mergeProgress.config(mode="indeterminate")
 
     succeed = 0
     cancelFlag = False
@@ -125,10 +131,11 @@ def startDownload(
         succeed += 1
         if (succeed) >= 2:
             logger.info("download success")
+            mergeProgress.config(mode="indeterminate")
             mergeProgress.start()
             _start("merge")
 
-    def fail(t: Literal["video", "audio"]):
+    def fail(t: _tt.Literal["video", "audio"]):
         logger.info(f"{t} download failed")
         if cancelFlag:
             return
@@ -141,6 +148,13 @@ def startDownload(
 
     def mergeSuccess():
         canOK()
+
+        mergeProgress.stop()
+        mergeProgress.config(mode="determinate")
+        mergeProgress["maximum"] = 1
+        mergeProgress["value"] = 1
+        mergeProgress.update()
+
         util.dialog.showinfo("下载完成", "下载完成")
         logger.info("merge succeed, download complete")
 
@@ -157,7 +171,7 @@ def startDownload(
     audioThread: threading.Thread | None = None
     mergeThread: threading.Thread | None = None
 
-    def _start(t: Literal["video", "audio", "merge"]):
+    def _start(t: _tt.Literal["video", "audio", "merge"]):
         nonlocal videoThread, audioThread, mergeThread
         logger.info(f"start thread: {t}")
         if t == "video":
@@ -189,7 +203,7 @@ def startDownload(
                 daemon=True,
             )
             audioThread.start()
-            logger.info(f"audio thread started in thread {videoThread.ident}")
+            logger.info(f"audio thread started in thread {audioThread.ident}")
         elif t == "merge":
             mergeThread = threading.Thread(
                 target=mergeVideo,
@@ -206,8 +220,8 @@ def startDownload(
 
 
 def askDownloadPart(
-    videoList: List[types.VideoPart],
-    callback: Callable[[types.VideoPart], None],
+    videoList: list[types.VideoPart],
+    callback: _tt.Callable[[types.VideoPart], None],
 ):
 
     util.dialog.askToSelect(
@@ -249,7 +263,7 @@ def requestDownload():
 def getPlayList(video: str, cookie: str, savePath: str):
     logger = util.getLogger("getPlayList")
     for i in getPlayInfo.li:
-        res: List[types.VideoPart] | None = i.get(video, cookie)
+        res: list[types.VideoPart] | None = i.get(video, cookie)
         if res is None:
             logger.warning("Play list not found")
             return
@@ -289,10 +303,10 @@ def getPlayUrl(videoInfo: types.VideoPart, cookie: str, savePath: str, video: st
 
 
 def askDownloadType(
-    videoList: List[Dict],
-    audioList: List[Dict],
-    acceptQuality: Dict[int, str],
-    callback: Callable[[Dict, Dict], None],
+    videoList: list[dict],
+    audioList: list[dict],
+    acceptQuality: dict[int, str],
+    callback: _tt.Callable[[dict, dict], None],
 ):
 
     util.dialog.askToSelect(
@@ -321,8 +335,8 @@ def mergeVideo(
     videoPath: pathlib.Path,
     audioPath: pathlib.Path,
     savePath: pathlib.Path,
-    mergeSuccess: Callable[[], None],
-    mergeFail: Callable[[], None],
+    mergeSuccess: _tt.Callable[[], None],
+    mergeFail: _tt.Callable[[], None],
 ):
     logger = util.getLogger("mergeVideo")
 
@@ -361,7 +375,7 @@ def mergeVideo(
 
 class HelpButton(tk.Label):
     img = ImageTk.PhotoImage(
-        Image.open(util.dataPath("help.png")).resize((18, 18), Image.LANCZOS)
+        Image.open(util.dataPath("help.png")).resize((18, 18), Image.Resampling.LANCZOS)
     )
     helpTitle: str
     helpText: str
@@ -388,7 +402,7 @@ class HelpButton(tk.Label):
 rootLogger.info("starting")
 
 rootWindow.title("视频下载器")
-rootWindow.resizable(0, 0)
+rootWindow.resizable(False, False)
 try:
     rootWindow.iconphoto(True, tk.PhotoImage(file=str(util.dataPath("icon.png"))))
 except Exception as e:

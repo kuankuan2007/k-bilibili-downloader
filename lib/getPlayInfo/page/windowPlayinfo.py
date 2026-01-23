@@ -1,10 +1,9 @@
-from typing import *
 import re
 import json
 from lib.util import types, getLogger, optionalChain, errorLogInfo
 
 
-def get(html: str, cookie: str) -> list[types.VideoPart]:
+def get(html: str, cookie: str) -> list[types.VideoPart]: # pylint: disable=unused-argument
     logger = getLogger("AnalyzingPageWindowPlayinfo")
     try:
         logger.info("start parse page")

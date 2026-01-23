@@ -1,4 +1,3 @@
-from typing import *
 from lib.util import session
 import re
 from lib.util import playUrl, types, getHeader, toCallback, optionalChain, getLogger,errorLogInfo

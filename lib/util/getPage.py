@@ -1,4 +1,3 @@
-from typing import *
 from . import session
 import lib.util as util
 
@@ -13,6 +12,7 @@ def get(video: str, cookie: str) -> str:
         logger.info(f"get page from cache: {url}")
         return cache[url]
     try:
+        assert url is not None, "Can't get page url"
         logger.info(f"request page url: {url}, headers: {headers}")
         response = session.get(url, headers=headers)
         logger.info(f"response status code: {response.status_code}")
@@ -24,7 +24,6 @@ def get(video: str, cookie: str) -> str:
             "错误",
             f"请求错误，无法获取页面信息\n{util.errorLogInfo(e)}",
         )
-        return
-
+        return ""
     cache[url] = html
     return html
