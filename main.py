@@ -30,37 +30,54 @@ rootWindow = util.rootWindow
 
 def _download(
     url: str,
-    header: Dict[str, str],
-    saveIO: io.FileIO,
+    headers: Dict[str, str],
+    savePath: pathlib.Path,
     succeed: Callable[[], None],
     fail: Callable[[], None],
     progress: ttk.Progressbar,
 ):
     logger = util.getLogger("_download")
 
-    logger.info(f"start downloading {url}")
+    logger.info(f"start downloading {url} to {savePath}")
+
+    downloaded = savePath.stat().st_size if savePath.exists() else 0
+
+    if downloaded:
+        logger.info(f"find {downloaded} bytes downloaded, try to continue downloading")
+        headers={**headers, "Range": f"bytes={downloaded}-"}
 
     try:
         response = session.get(
-            url, headers=header, stream=True, 
+            url,
+            headers=headers,
+            stream=True,
         )
         logger.info(f"response status code: {response.status_code}")
 
         assert response.status_code // 100 == 2
 
+        if response.status_code == 206:
+            saveIo = io.open(savePath, "ab")
+            logger.info("Range request supported, continue downloading")
+        else:
+            saveIo = io.open(savePath, "wb")
+            if downloaded:
+                logger.info("Range request not supported, start downloading from scratch")
+
+        progress["value"] = 0
         progress["maximum"] = int(response.headers["Content-Length"])
 
         for i in response.iter_content(1024):
-            saveIO.write(i)
+            saveIo.write(i)
             progress["value"] += len(i)
             progress.update()
 
     except Exception as e:
         logger.warning(f"download failed: {util.errorLogInfo(e)}: {e}")
-
+        saveIo.close()
         fail()
     else:
-        saveIO.close()
+        saveIo.close()
         logger.info("download succeed")
         succeed()
 
@@ -111,7 +128,7 @@ def startDownload(
             mergeProgress.start()
             _start("merge")
 
-    def fail(t=Literal["video", "audio"]):
+    def fail(t: Literal["video", "audio"]):
         logger.info(f"{t} download failed")
         if cancelFlag:
             return
@@ -140,7 +157,7 @@ def startDownload(
     audioThread: threading.Thread | None = None
     mergeThread: threading.Thread | None = None
 
-    def _start(t=Literal["video", "audio", "merge"]):
+    def _start(t: Literal["video", "audio", "merge"]):
         nonlocal videoThread, audioThread, mergeThread
         logger.info(f"start thread: {t}")
         if t == "video":
@@ -149,7 +166,7 @@ def startDownload(
                 args=(
                     videoInfo["baseUrl"],
                     header,
-                    io.FileIO(videoPath, "wb"),
+                    videoPath,
                     downloadSuccess,
                     lambda: fail(t),
                     videoProgress,
@@ -164,7 +181,7 @@ def startDownload(
                 args=(
                     audioInfo["baseUrl"],
                     header,
-                    io.FileIO(audioPath, "wb"),
+                    audioPath,
                     downloadSuccess,
                     lambda: fail(t),
                     audioProgress,
@@ -436,11 +453,13 @@ ttk.Button(
 
 def downloadButtonOnClick():
     downloadButton.configure(state="disabled")
+
     def _target():
         try:
             requestDownload()
         finally:
             downloadButton.configure(state="normal")
+
     requestDownloadThread = threading.Thread(
         target=_target,
         daemon=True,
@@ -449,7 +468,6 @@ def downloadButtonOnClick():
     rootLogger.info(
         f"download button onclick, starting download thread {requestDownloadThread.ident}"
     )
-    
 
 
 downloadButton = ttk.Button(main, text="下载", command=downloadButtonOnClick)
