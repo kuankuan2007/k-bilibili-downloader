@@ -1,13 +1,11 @@
 from typing import *
 from lib.util import session
 import re
-import lib.util as util
-import lib.util.types as types
-from . import playUrl
+from lib.util import playUrl, types, getHeader, toCallback, optionalChain, getLogger,errorLogInfo
 
 
 def get(video: str, cookie: str):
-    logger = util.getLogger("AnalyzingEpApi")
+    logger = getLogger("AnalyzingEpApi")
     try:
 
         epID = (re.findall(r"ep([1-9][0-9]*)", video, re.I) or [None])[0]
@@ -19,13 +17,13 @@ def get(video: str, cookie: str):
         epData = session.get(
             "https://api.bilibili.com/pgc/view/web/ep/list",
             params={"ep_id": epID},
-            headers=util.getHeader(cookie),
+            headers=getHeader(cookie),
         ).json()["result"]
 
         res = [
             types.VideoPart(
                 title=i["title"],
-                playinfo=util.toCallback(
+                playinfo=toCallback(
                     playUrl.get,
                     cookie=cookie,
                     avid=i["aid"],
@@ -33,14 +31,14 @@ def get(video: str, cookie: str):
                     cid=i["cid"],
                 ),
             )
-            for i in util.optionalChain(epData, "episodes", default=[])
+            for i in optionalChain(epData, "episodes", default=[])
         ]
-        for i in util.optionalChain(epData, "section", default=[]):
-            for j in util.optionalChain(epData, "episodes", default=[]):
+        for i in optionalChain(epData, "section", default=[]):
+            for j in optionalChain(epData, "episodes", default=[]):
                 res.append(
                     types.VideoPart(
                         title=i["title"] + " - " + j["title"],
-                        playinfo=util.toCallback(
+                        playinfo=toCallback(
                             playUrl.get,
                             cookie=cookie,
                             avid=j["aid"],
@@ -53,5 +51,5 @@ def get(video: str, cookie: str):
         return res
 
     except Exception as e:
-        logger.warning(f"Can't get page list with error {util.errorLogInfo(e)}")
+        logger.warning(f"Can't get page list with error {errorLogInfo(e)}")
         return []

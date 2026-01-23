@@ -99,7 +99,6 @@ def startDownload(
     )
 
     mergeProgress.config(mode="indeterminate")
-    mergeProgress.start()
 
     succeed = 0
     cancelFlag = False
@@ -109,6 +108,7 @@ def startDownload(
         succeed += 1
         if (succeed) >= 2:
             logger.info("download success")
+            mergeProgress.start()
             _start("merge")
 
     def fail(t=Literal["video", "audio"]):

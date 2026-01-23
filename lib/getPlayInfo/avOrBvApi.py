@@ -2,8 +2,7 @@ from typing import *
 from lib.util import session
 import re
 import lib.util as util
-import lib.util.types as types
-from . import playUrl
+from lib.util import types, playUrl, toCallback, errorLogInfo, getHeader
 
 
 def get(video: str, cookie: str):
@@ -19,19 +18,23 @@ def get(video: str, cookie: str):
         pagelist = session.get(
             "https://api.bilibili.com/x/player/pagelist",
             params=info,
-            headers=util.getHeader(cookie),
+            headers=getHeader(cookie),
         ).json()["data"]
         assert pagelist and type(pagelist) == list, "Can't get page list"
         logger.info(f"Got {len(pagelist)} pages")
         return [
             types.VideoPart(
                 title=i["part"],
-                playinfo=util.toCallback(
-                    playUrl.get, cookie=cookie, avid=info["aid"], bvid=info["bvid"], cid=i["cid"]
+                playinfo=toCallback(
+                    playUrl.get,
+                    cookie=cookie,
+                    avid=info["aid"],
+                    bvid=info["bvid"],
+                    cid=i["cid"],
                 ),
             )
             for i in pagelist
         ]
     except Exception as e:
-        logger.warning(f"Can't get page list with error {util.errorLogInfo(e)}")
+        logger.warning(f"Can't get page list with error {errorLogInfo(e)}")
         return []
