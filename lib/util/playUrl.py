@@ -10,6 +10,7 @@ def get(
 ) -> dict:
     logger = util.getLogger("getPlayInfo")
     try:
+        logger.info(f"get play url with avid: {avid}, bvid: {bvid}, cid: {cid}")
         return session.get(
             "https://api.bilibili.com/x/player/wbi/playurl",
             params={
