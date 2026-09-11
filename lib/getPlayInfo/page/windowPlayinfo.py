@@ -10,7 +10,7 @@ def get(html: str, cookie: str) -> list[types.VideoPart]: # pylint: disable=unus
         flag = False
         for i, maper in [
             (
-                re.compile(r"window.__playinfo__=(.*?)</script>", re.S),
+                re.compile(r"window.__playinfo__\s*=\s*(.*?)</script>", re.S),
                 lambda x: x["data"],
             ),
             (

@@ -81,7 +81,7 @@ def getHeader(cookie: str | None = None, referer: str | None = None, **kwargs) -
         "Cookie": cookie,
         "Accept": "*/*",
         "Accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
-        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Encoding": "gzip, deflate",
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
         "Sec-Ch-Ua": '"Microsoft Edge";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
         "Sec-Ch-Ua-Mobile": "?0",

@@ -14,11 +14,12 @@ def get(video: str, cookie: str):
         if not info["aid"] and not info["bvid"]:
             logger.info("No av or bv found")
             return []
-        pagelist = session.get(
+        res = session.get(
             "https://api.bilibili.com/x/player/pagelist",
             params=info,
             headers=getHeader(cookie),
-        ).json()["data"]
+        )
+        pagelist = res.json()["data"]
         assert pagelist and type(pagelist) == list, "Can't get page list"
         logger.info(f"Got {len(pagelist)} pages")
         return [
